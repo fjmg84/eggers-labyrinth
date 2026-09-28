@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DE PROFUNDIS — Anno Domini MCLIII</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Grenze+Gotisch:wght@400;500;700&family=EB+Garamond:ital,wght@0,400;0,500;1,400;1,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="stage">
+  <canvas id="view" width="800" height="480"></canvas>
+
+  <!-- atmósfera Eggers: luz de vela, viñeta, grano de película -->
+  <div id="lamp"></div>
+  <div id="vignette"></div>
+  <div id="grain"></div>
+  <div id="flash"></div>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div id="chapterTag"></div>
+    <canvas id="minimap" width="160" height="160"></canvas>
+    <div id="prompt"></div>
+    <div id="msg"></div>
+  </div>
+
+  <!-- pantalla de título -->
+  <div id="titleScreen" class="screen">
+    <img class="art" src="assets/mortui.jpg" alt="Los tres muertos y los tres vivos, manuscrito medieval">
+    <div class="shade"></div>
+    <div class="panel">
+      <p class="year">Anno Domini MCLIII</p>
+      <h1>DE PROFUNDIS</h1>
+      <p class="tag">Los muertos se han alzado en la abadía.<br>
+      Abre las puertas que te separan del exterior<br>y asciende hacia la luz. No dejes que te alcancen.</p>
+      <div class="controls">
+        <span><b>W&thinsp;A&thinsp;S&thinsp;D</b> moverte</span>
+        <span><b>← →</b> girar</span>
+        <span><b>↑ ↓</b> mirar arriba y abajo</span>
+        <span><b>E</b> / <b>CLIC</b> / <b>ESPACIO</b> abrir y cerrar puertas</span>
+        <span><b>ESC</b> pausa</span>
+        <span><b>TAB</b> plano de la abadía</span>
+        <span><b>M</b> silencio</span>
+      </div>
+      <p class="warn">El sonido es alto por diseño. Algo se acerca cuando lo oyes cerca.</p>
+      <button id="startBtn">COMENZAR</button>
+      <p class="credit">Miniatura: «Les trois morts et les trois vifs», Ms. Arundel 127, s.&thinsp;XIII — dominio público</p>
+    </div>
+  </div>
+
+  <!-- cartela de capítulo -->
+  <div id="card" class="screen hidden">
+    <img class="bg" src="assets/psalter.jpg" alt="">
+    <div class="shade"></div>
+    <div class="cardText">
+      <p class="chapterNum"></p>
+      <h2 class="chapterName"></h2>
+      <p class="epigraph"></p>
+      <p class="clickHint">pulsa para descender</p>
+    </div>
+  </div>
+
+  <!-- muerte -->
+  <div id="deathScreen" class="screen hidden">
+    <img class="bg" src="assets/psalter.jpg" alt="">
+    <div class="shade dark"></div>
+    <div class="cardText">
+      <h2 class="deathTitle">TE HAN ALCANZADO</h2>
+      <p class="epigraph">«Media vita in morte sumus.»</p>
+      <button id="retryBtn">ALZARSE DE NUEVO</button>
+    </div>
+  </div>
+
+  <!-- victoria -->
+  <div id="victoryScreen" class="screen hidden">
+    <div class="shade light"></div>
+    <div class="cardText">
+      <h2 class="lux">LVX</h2>
+      <p class="epigraph dark-ink">«Libera eas de ore leonis.»</p>
+      <p class="tagLight">Has escapado de las profundidades.<br>La abadía queda atrás, y sus muertos, también.</p>
+      <p id="stats"></p>
+      <button id="againBtn">DESCENDER DE NUEVO</button>
+    </div>
+  </div>
+
+  <!-- pausa -->
+  <div id="pauseScreen" class="screen hidden">
+    <div class="shade dark"></div>
+    <div class="cardText">
+      <h2>PAVSA</h2>
+      <p class="clickHint">pulsa para continuar</p>
+    </div>
+  </div>
+</div>
+<script src="js/map.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/engine.js"></script>
+</body>
+</html>
