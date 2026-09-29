@@ -5,12 +5,12 @@ Flujo: una rama por fase → tú commiteas, pusheas y mergeas a `main` → sigui
 
 ## Fase 0 — Limpieza y renombrado (rama `juego-2d`)
 
-- [ ] Renombrar rama `threejs-engine` → `juego-2d`
-- [ ] Restaurar `index.html`, `js/engine.js`, `style.css` a HEAD (borrar cambios 3D)
-- [ ] Eliminar `js/scene.js`, `js/assets.gen.js`, `tools/embed_textures.py`, `docs/guion_juego_nosferatu.md`
-- [ ] Conservar docs nuevos (`guion_completo_del_juego.md`, cambios en `documento_de_dise_o_y_desarrollo.md`)
-- [ ] Crear `docs/arquitectura_visual_2d.md` con la especificación técnica 2D (layering, efectos, estética por acto)
-- [ ] Commit solo de docs
+- [x] Renombrar rama `threejs-engine` → `juego-2d`
+- [x] Restaurar `index.html`, `js/engine.js`, `style.css` a HEAD (borrar cambios 3D)
+- [x] Eliminar `js/scene.js`, `js/assets.gen.js`, `tools/embed_textures.py`, `docs/guion_juego_nosferatu.md`
+- [x] Conservar docs nuevos (`guion_completo_del_juego.md`, cambios en `documento_de_dise_o_y_desarrollo.md`)
+- [x] Crear `docs/arquitectura_visual_2d.md` con la especificación técnica 2D (layering, efectos, estética por acto)
+- [x] Commit solo de docs
 
 ## Fase 1 — Motor base 2D (rama `juego-2d`, checkpoint 1 → merge a main)
 
