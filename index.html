@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DE PROFUNDIS — Anno Domini MCLIII</title>
+<title>The Folktales of Eggers — A Journey Through Darkness</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Grenze+Gotisch:wght@400;500;700&family=EB+Garamond:ital,wght@0,400;0,500;1,400;1,500&display=swap" rel="stylesheet">
@@ -11,18 +11,22 @@
 </head>
 <body>
 <div id="stage">
-  <canvas id="view" width="800" height="480"></canvas>
-
-  <!-- atmósfera Eggers: luz de vela, viñeta, grano de película -->
-  <div id="lamp"></div>
-  <div id="vignette"></div>
-  <div id="grain"></div>
-  <div id="flash"></div>
+  <!-- viewport por capas: fondo → profundidad → entes → niebla → luz → lente -->
+  <div id="viewport">
+    <div id="scene-layer"></div>
+    <div id="entity-layer"></div>
+    <canvas id="fog" width="640" height="384"></canvas>
+    <div id="light"></div>
+    <div id="lens"></div>
+    <div id="grain"></div>
+    <div id="flash"></div>
+  </div>
 
   <!-- HUD -->
   <div id="hud" class="hidden">
     <div id="chapterTag"></div>
-    <canvas id="minimap" width="160" height="160"></canvas>
+    <div id="objective"></div>
+    <div id="inventory"></div>
     <div id="prompt"></div>
     <div id="msg"></div>
   </div>
@@ -32,22 +36,19 @@
     <img class="art" src="assets/mortui.jpg" alt="Los tres muertos y los tres vivos, manuscrito medieval">
     <div class="shade"></div>
     <div class="panel">
-      <p class="year">Anno Domini MCLIII</p>
-      <h1>DE PROFUNDIS</h1>
-      <p class="tag">Los muertos se han alzado en la abadía.<br>
-      Abre las puertas que te separan del exterior<br>y asciende hacia la luz. No dejes que te alcancen.</p>
+      <p class="year">Anthology Horror · Five Acts of Darkness</p>
+      <h1>THE FOLKTALES<br>OF EGGERS</h1>
+      <p class="tag">Eres una alma atrapada en una encrucijada del tiempo.<br>
+      Atraviesa cinco eras del terror humano<br>y encuentra la absolución.</p>
       <div class="controls">
-        <span><b>W&thinsp;A&thinsp;S&thinsp;D</b> moverte</span>
-        <span><b>← →</b> girar</span>
-        <span><b>↑ ↓</b> mirar arriba y abajo</span>
-        <span><b>E</b> / <b>CLIC</b> / <b>ESPACIO</b> abrir y cerrar puertas</span>
+        <span><b>W&thinsp;A&thinsp;S&thinsp;D</b> / <b>FLECHAS</b> moverte entre escenas</span>
+        <span><b>RATÓN</b> mirada y linterna</span>
+        <span><b>E</b> / <b>CLIC</b> interactuar</span>
         <span><b>ESC</b> pausa</span>
-        <span><b>TAB</b> plano de la abadía</span>
         <span><b>M</b> silencio</span>
       </div>
       <p class="warn">El sonido es alto por diseño. Algo se acerca cuando lo oyes cerca.</p>
       <button id="startBtn">COMENZAR</button>
-      <p class="credit">Miniatura: «Les trois morts et les trois vifs», Ms. Arundel 127, s.&thinsp;XIII — dominio público</p>
     </div>
   </div>
 
@@ -69,8 +70,8 @@
     <div class="shade dark"></div>
     <div class="cardText">
       <h2 class="deathTitle">TE HAN ALCANZADO</h2>
-      <p class="epigraph">«Media vita in morte sumus.»</p>
-      <button id="retryBtn">ALZARSE DE NUEVO</button>
+      <p class="epigraph">«Tu espíritu queda atrapado en esta era.»</p>
+      <button id="retryBtn">VOLVER A LA ESCENA</button>
     </div>
   </div>
 
@@ -79,10 +80,10 @@
     <div class="shade light"></div>
     <div class="cardText">
       <h2 class="lux">LVX</h2>
-      <p class="epigraph dark-ink">«Libera eas de ore leonis.»</p>
-      <p class="tagLight">Has escapado de las profundidades.<br>La abadía queda atrás, y sus muertos, también.</p>
+      <p class="epigraph dark-ink">«Has sobrevivido a la sombra de Eggers.»</p>
+      <p class="tagLight">Los bosques, las rocas, las tumbas y la peste<br>se disuelven en una luz clara.</p>
       <p id="stats"></p>
-      <button id="againBtn">DESCENDER DE NUEVO</button>
+      <button id="againBtn">VOLVER A EMPEZAR</button>
     </div>
   </div>
 
@@ -95,8 +96,9 @@
     </div>
   </div>
 </div>
-<script src="js/map.js"></script>
 <script src="js/audio.js"></script>
+<script src="js/nodes.js"></script>
+<script src="js/demo.js"></script>
 <script src="js/engine.js"></script>
 </body>
 </html>
