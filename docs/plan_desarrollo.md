@@ -14,18 +14,18 @@ Flujo: una rama por fase → tú commiteas, pusheas y mergeas a `main` → sigui
 
 ## Fase 1 — Motor base 2D (rama `juego-2d`, checkpoint 1 → merge a main)
 
-- [ ] `index.html`: viewport por capas (fondo, parallax/depth, luz/niebla con `--light-x/y`, entes, UI/lente)
-- [ ] `js/nodes.js`: grafo de nodos por acto `{id, capas CSS, salidas WASD, hotspots, spawns}` + BFS de alcanzabilidad
-- [ ] `js/engine.js`: flujo de pantallas (título → cartela → juego → muerte → victoria) reutilizando el DOM actual
-- [ ] Movimiento WASD/flechas entre nodos con transición cinemática
-- [ ] Parallax de mirada con ratón + linterna siguiendo el cursor
-- [ ] Interacción `E`/clic en hotspots
-- [ ] HUD de objetivo/inventario genérico
-- [ ] `setActAtmosphere()`: filtros CSS por acto (adaptado del GDD)
-- [ ] Partículas de niebla en canvas
-- [ ] Eliminar `js/map.js` (laberinto procedural ya no aplica)
-- [ ] Escena placeholder de 2-3 nodos para probar
-- [ ] `tools/check_nodes.js`: valida grafos (salidas existen, objetivo alcanzable)
+- [x] `index.html`: viewport por capas (fondo, parallax/depth, luz/niebla con `--light-x/y`, entes, UI/lente)
+- [x] `js/nodes.js`: grafo de nodos por acto `{id, capas CSS, salidas WASD, hotspots, spawns}` + BFS de alcanzabilidad
+- [x] `js/engine.js`: flujo de pantallas (título → cartela → juego → muerte → victoria) reutilizando el DOM actual
+- [x] Movimiento WASD/flechas entre nodos con transición cinemática
+- [x] Parallax de mirada con ratón + linterna siguiendo el cursor
+- [x] Interacción `E`/clic en hotspots
+- [x] HUD de objetivo/inventario genérico
+- [x] `setActAtmosphere()`: filtros CSS por acto (adaptado del GDD)
+- [x] Partículas de niebla en canvas
+- [x] Eliminar `js/map.js` (laberinto procedural ya no aplica)
+- [x] Escena placeholder de 2-3 nodos para probar (`js/demo.js`)
+- [x] `tools/check_nodes.js`: valida grafos (salidas existen, objetivo alcanzable)
 - [ ] **CHECKPOINT: tú pruebas, comiteas y mergeas a `main`**
 
 ## Fase 2 — Acto I: *La Bruja* (rama `acto-i` desde main)
