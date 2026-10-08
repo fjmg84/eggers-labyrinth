@@ -7,7 +7,9 @@ const path = require('path');
 const { ACTS, validateAct } = require(path.join(__dirname, '..', 'js', 'nodes.js'));
 
 // registrar los actos (browser-less)
-require(path.join(__dirname, '..', 'js', 'demo.js'));
+for (const f of require('fs').readdirSync(path.join(__dirname, '..', 'js'))) {
+  if (/^act\d+\.js$/.test(f)) require(path.join(__dirname, '..', 'js', f));
+}
 
 const acts = Object.values(ACTS).sort((a, b) => a.index - b.index);
 if (!acts.length) { console.error('FALLO: ningún acto registrado'); process.exit(1); }

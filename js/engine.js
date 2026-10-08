@@ -8,9 +8,11 @@
 const $ = id => document.getElementById(id);
 const ui = {
   viewport: $('viewport'), scene: $('scene-layer'), entities: $('entity-layer'),
+  passers: $('passers'), exits: $('exits'),
   fog: $('fog'), light: $('light'), flash: $('flash'),
   hud: $('hud'), chapterTag: $('chapterTag'), objective: $('objective'),
   inventory: $('inventory'), prompt: $('prompt'), msg: $('msg'),
+  meter: $('meter'), meterFill: document.querySelector('#meter i'),
   title: $('titleScreen'), card: $('card'), death: $('deathScreen'),
   victory: $('victoryScreen'), pause: $('pauseScreen'), stats: $('stats'),
   cardNum: document.querySelector('#card .chapterNum'),
@@ -31,10 +33,14 @@ const game = {
   look: { x: 0.5, y: 0.5 },
   lampFlick: 1,
   hotspotFocus: null,
+  stepCd: 0,            // cooldown entre pasos (mantener tecla contra pared)
+  meter: null,         // medidor genérico (antorcha, aceite…): {v, max, drain, label, emptyMsg}
+  entities: [],        // entes sobre el grafo: {id, css, node, from, cadence, grace, catch}
+  threat: null,        // {e, t} — un ente en tu nodo, grace para escapar
+  darknessT: 0,        // acumulado en zonas oscuras (hook del acto)
 };
 const keys = {};
 let msgTimer = null;
-let transitionT = 0;
 
 // partículas de niebla (una sola vez)
 const motes = Array.from({ length: 42 }, () => ({
@@ -50,6 +56,7 @@ function showMsg(t, dur = 3.4) {
   clearTimeout(msgTimer);
   msgTimer = setTimeout(() => { ui.msg.style.opacity = 0; }, dur * 1000);
 }
+game.showMsg = showMsg; // los actos (onTick/onEnterNode) hablan por aquí
 
 function showPrompt(t) { ui.prompt.textContent = t; }
 
@@ -84,8 +91,14 @@ function beginAct(index) {
   game.actIndex = index;
   game.inventory = [];
   game.moving = false;
-  transitionT = 0;
+  game.darknessT = 0;
+  game.threat = null;
+  game.stepCd = 0;
+  game.meter = act.meter ? { ...act.meter, v: act.meter.max } : null;
+  game.entities = (act.entities || []).map(e => ({ ...e, node: e.from, fade: 0 }));
   setActAtmosphere(act);
+  ui.meter.classList.toggle('hidden', !game.meter);
+  document.querySelector('#meter .meterLabel').textContent = act.meter ? act.meter.label : '';
   enterNode(act.start, true);
   ui.card.classList.add('hidden');
   ui.death.classList.add('hidden');
@@ -98,7 +111,7 @@ function beginAct(index) {
   renderInventory();
   showMsg(act.intro || 'WASD para moverte. El ratón mira.', 5);
   if (!game.t0) game.t0 = performance.now();
-  SND.startWorld(0);
+  SND.startWorld(game.entities.length);
   SND.bell(1);
   game.state = 'play';
 }
@@ -150,10 +163,24 @@ function enterNode(id, instant) {
   game.node = id;
   ui.scene.className = node.scene || '';
   renderHotspots(node);
+  renderExits(node);
   if (instant) {
     ui.viewport.style.transition = 'none';
-    ui.viewport.classList.remove('nodemove');
     requestAnimationFrame(() => { ui.viewport.style.transition = ''; });
+  }
+  if (act.onEnterNode) act.onEnterNode(game, node);
+}
+
+// Senderos de luz hacia cada salida disponible: el jugador ve hacia dónde ir.
+function renderExits(node) {
+  ui.exits.innerHTML = '';
+  const D = { n: 'NORTE', s: 'SUR', e: 'ESTE', w: 'OESTE' };
+  for (const [dir, to] of Object.entries(node.exits || {})) {
+    if (!to) continue;
+    const el = document.createElement('div');
+    el.className = `exit exit-${dir}`;
+    el.title = D[dir] || dir;
+    ui.exits.appendChild(el);
   }
 }
 
@@ -186,7 +213,21 @@ function useHotspot(h) {
         SND.creak('open');
       } else showMsg('Ya lo tienes.', 1.8);
       break;
-    case 'win': levelWin(); break;
+    case 'refuel':
+      if (game.meter) {
+        game.meter.v = Math.min(game.meter.max, game.meter.v + (a.amount || 30));
+        showMsg(a.text || `Recargas el combustible.`, 2.4);
+        SND.creak('close');
+      }
+      break;
+    case 'win':
+      if (a.requires && a.requires.some(r => !game.inventory.includes(r))) {
+        const missing = a.requires.filter(r => !game.inventory.includes(r));
+        showMsg(a.lockedMsg || `Te falta: ${missing.join(', ')}.`, 3.2);
+        return;
+      }
+      levelWin();
+      break;
     case 'death': playerDeath(a.reason); break;
     case 'fn': if (typeof a.run === 'function') a.run(game); break;
     default: showMsg(h.label || 'Nada aquí.', 2);
@@ -199,28 +240,53 @@ const DIR_KEY = {
 };
 
 function tryMove(dir) {
-  if (game.state !== 'play' || game.moving) return;
+  if (game.state !== 'play' || game.moving || game.stepCd > 0) return;
   const node = game.act.nodes[game.node];
   const to = (node.exits || {})[dir];
   if (!to) {
-    // pared: sacudida breve de la cámara
+    // pared: sacudida breve de la cámara (con cooldown si la tecla se mantiene)
     ui.viewport.classList.remove('bump');
     void ui.viewport.offsetWidth;
     ui.viewport.classList.add('bump');
+    setTimeout(() => ui.viewport.classList.remove('bump'), 300);
     showMsg('No hay paso por aquí.', 1.6);
+    game.stepCd = 0.5;
     return;
   }
   if (!game.act.nodes[to]) return;
   game.moving = true;
-  transitionT = 0.55;
-  ui.viewport.classList.add('nodemove');
+  ui.viewport.classList.add(`move-${dir}`);
+  spawnPassers(dir);
   SND.footstep();
   setTimeout(() => {
     enterNode(to);
     SND.footstep();
-    ui.viewport.classList.remove('nodemove');
-    game.moving = false;
   }, 300);
+  setTimeout(() => {
+    ui.viewport.classList.remove(`move-${dir}`);
+    game.moving = false;
+    game.stepCd = 0.12;
+  }, 620);
+}
+
+// Siluetas transitorias que barren la pantalla durante el paso:
+// es lo que hace visible que "la pantalla se está moviendo".
+function spawnPassers(dir) {
+  const n = 4 + (Math.random() * 3 | 0);
+  for (let i = 0; i < n; i++) {
+    const el = document.createElement('div');
+    el.className = `passer dir-${dir}`;
+    const w = 3 + Math.random() * 9;           // % de ancho: troncos/rocas
+    const h = 35 + Math.random() * 55;         // % de alto
+    const x = Math.random() * 100;
+    el.style.cssText =
+      `left:${x.toFixed(1)}%;top:${(70 - h + Math.random() * 30).toFixed(1)}%;` +
+      `width:${w.toFixed(1)}%;height:${h.toFixed(1)}%;` +
+      `filter:blur(${(1 + Math.random() * 3).toFixed(1)}px);` +
+      `animation-delay:${(Math.random() * 0.18).toFixed(2)}s;`;
+    el.addEventListener('animationend', () => el.remove());
+    ui.passers.appendChild(el);
+  }
 }
 
 // ---------- entrada ----------
@@ -243,6 +309,7 @@ window.addEventListener('keydown', e => {
   if (dir) { e.preventDefault(); tryMove(dir); }
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
+window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 
 ui.pause.addEventListener('click', () => { if (game.state === 'pause') { game.state = 'play'; ui.pause.classList.add('hidden'); ui.hud.classList.remove('hidden'); } });
 ui.card.addEventListener('click', () => { if (game.state === 'card') beginAct(game.actIndex); });
@@ -279,6 +346,62 @@ window.addEventListener('mousemove', e => {
   ui.viewport.style.setProperty('--look-y-fg', `${(-dy * 32).toFixed(1)}px`);
 });
 
+// ---------- entes sobre el grafo ----------
+// IA mínima: cada `cadence` s el ente da un paso hacia tu nodo (BFS).
+// Al entrar en tu nodo empieza el `grace`; si expira, te atrapa.
+function updateEntities(dt) {
+  if (!game.entities.length) return;
+  let minHops = 99;
+  for (let i = 0; i < game.entities.length; i++) {
+    const e = game.entities[i];
+    e.t = (e.t || 0) + dt;
+    const hops = e.node === game.node ? 0 : NODES.bfsDist(game.act, e.node).get(game.node) ?? 99;
+    minHops = Math.min(minHops, hops || 99);
+    // susurro: más alto cuanto más cerca (canal = índice del ente)
+    SND.setWhisper(i, Math.max(0, 1 - hops / 4), 0, hops > 2, dt);
+    if (e.t >= (e.cadence || 4) && e.node !== game.node && !game.moving) {
+      e.t = 0;
+      const next = NODES.stepToward(game.act, e.node, game.node);
+      if (next) e.node = next;
+    }
+    renderEntity(e, dt);
+  }
+  // corazón acelerado cuando algo está a 1-2 saltos
+  SND.updateHeart(minHops <= 2 ? 1.2 * minHops : 99, game.time);
+
+  // amenaza en tu nodo
+  const here = game.entities.find(e => e.node === game.node);
+  if (here) {
+    if (!game.threat || game.threat.e !== here) {
+      game.threat = { e: here, t: here.grace || 1.6 };
+      showMsg(`${here.spot || 'Algo ha entrado contigo.'}`, 2.4);
+    } else {
+      game.threat.t -= dt;
+      if (game.threat.t <= 0) {
+        game.threat = null;
+        playerDeath(here.catch);
+        return;
+      }
+    }
+  } else game.threat = null;
+  ui.viewport.classList.toggle('threat', !!game.threat);
+}
+
+function renderEntity(e, dt) {
+  const visible = e.node === game.node;
+  let el = document.getElementById(`ent-${e.id}`);
+  if (!el && visible) {
+    el = document.createElement('div');
+    el.id = `ent-${e.id}`;
+    el.className = `creature ${e.css || ''}`;
+    ui.entities.appendChild(el);
+  }
+  if (!el) return;
+  e.fade = Math.max(0, Math.min(1, (e.fade || 0) + (visible ? dt * 1.4 : -dt * 2.5)));
+  el.style.opacity = e.fade;
+  el.style.display = e.fade <= 0.01 ? 'none' : '';
+}
+
 // ---------- bucle: niebla, parpadeo, transiciones ----------
 let last = performance.now();
 function loop(now) {
@@ -294,7 +417,30 @@ function loop(now) {
     Math.sin(t * 13) * Math.sin(t * 7.3 + 1.7) + Math.sin(t * 2.9) * 0.7) / 1.7;
   ui.light.style.opacity = game.lampFlick;
 
-  if (transitionT > 0) transitionT -= dt;
+  // tecla mantenida = caminar (WASD continuo, ritmo de la transición)
+  if (game.stepCd > 0) game.stepCd -= dt;
+  if (!game.moving && game.stepCd <= 0) {
+    for (const code in DIR_KEY) {
+      if (keys[code]) { tryMove(DIR_KEY[code]); break; }
+    }
+  }
+
+  // medidor de antorcha/aceite: se consume, y en 0 la oscuridad te toma
+  if (game.meter) {
+    game.meter.v = Math.max(0, game.meter.v - (game.meter.drain || 1) * dt);
+    ui.meterFill.style.width = `${(game.meter.v / game.meter.max) * 100}%`;
+    ui.meter.classList.toggle('empty', game.meter.v <= game.meter.max * 0.15);
+    if (game.meter.v <= 0) { playerDeath(game.meter.emptyMsg || 'La luz se apaga para siempre.'); return; }
+  }
+
+  // hooks del acto (timer de zonas oscuras, reglas propias…)
+  const node = game.act.nodes[game.node];
+  if (node.dark) game.darknessT += dt;
+  else game.darknessT = Math.max(0, game.darknessT - dt * 2);
+  if (game.act.onTick) game.act.onTick(game, dt);
+
+  updateEntities(dt);
+  if (game.state !== 'play') return;
 
   // niebla: motas a la deriva, visibles solo en el haz de la linterna
   fctx.clearRect(0, 0, 640, 384);
