@@ -12,6 +12,7 @@ const ui = {
   fog: $('fog'), light: $('light'), flash: $('flash'),
   hud: $('hud'), chapterTag: $('chapterTag'), objective: $('objective'),
   inventory: $('inventory'), prompt: $('prompt'), msg: $('msg'),
+  compass: $('compass'), minimap: $('minimap'), nodeTag: $('nodeTag'),
   meter: $('meter'), meterFill: document.querySelector('#meter i'),
   title: $('titleScreen'), card: $('card'), death: $('deathScreen'),
   victory: $('victoryScreen'), pause: $('pauseScreen'), stats: $('stats'),
@@ -38,9 +39,12 @@ const game = {
   entities: [],        // entes sobre el grafo: {id, css, node, from, cadence, grace, catch}
   threat: null,        // {e, t} — un ente en tu nodo, grace para escapar
   darknessT: 0,        // acumulado en zonas oscuras (hook del acto)
+  visited: new Set(),  // nodos pisados en el acto (para el minimapa)
 };
 const keys = {};
 let msgTimer = null;
+// motor 3D si Three.js cargó (mundo procedural); si no, escenas CSS/foto 2D
+const use3d = !!(window.THREE && window.SCENE3D);
 
 // partículas de niebla (una sola vez)
 const motes = Array.from({ length: 42 }, () => ({
@@ -96,6 +100,15 @@ function beginAct(index) {
   game.stepCd = 0;
   game.meter = act.meter ? { ...act.meter, v: act.meter.max } : null;
   game.entities = (act.entities || []).map(e => ({ ...e, node: e.from, fade: 0 }));
+  game.visited = new Set();
+  ui.minimap.classList.toggle('hidden', !Object.values(act.nodes).some(n => n.map));
+  if (use3d) {
+    SCENE3D.init();
+    SCENE3D.buildAct(act);
+    ui.viewport.classList.add('mode-3d');
+  } else {
+    ui.viewport.classList.remove('mode-3d');
+  }
   setActAtmosphere(act);
   ui.meter.classList.toggle('hidden', !game.meter);
   document.querySelector('#meter .meterLabel').textContent = act.meter ? act.meter.label : '';
@@ -161,9 +174,19 @@ function enterNode(id, instant) {
   const node = act.nodes[id];
   if (!node) return;
   game.node = id;
-  ui.scene.className = node.scene || '';
+  game.visited.add(id);
+  if (use3d) {
+    SCENE3D.enterNode(id, instant);
+  } else {
+    // foto HD del nodo si existe; si no, el escenario CSS de siempre (fallback)
+    ui.scene.className = node.image ? 'scene-photo' : (node.scene || '');
+    ui.scene.style.backgroundImage = node.image ? `url(assets/img/${node.image})` : '';
+  }
   renderHotspots(node);
   renderExits(node);
+  updateCompass(node);
+  renderMinimap();
+  showNodeName(node);
   if (instant) {
     ui.viewport.style.transition = 'none';
     requestAnimationFrame(() => { ui.viewport.style.transition = ''; });
@@ -182,6 +205,53 @@ function renderExits(node) {
     el.title = D[dir] || dir;
     ui.exits.appendChild(el);
   }
+}
+
+// Brújula: direcciones con salida iluminadas; clic = moverse.
+function updateCompass(node) {
+  for (const el of ui.compass.children) {
+    el.classList.toggle('open', !!((node.exits || {})[el.dataset.dir]));
+  }
+}
+
+// Minimapa: solo los nodos ya visitados y sus aristas; el actual pulsa.
+function renderMinimap() {
+  if (ui.minimap.classList.contains('hidden')) return;
+  const nodes = game.act.nodes;
+  const pos = id => {
+    const [x, y] = nodes[id].map;
+    return [x * 20 + 10, (4 - y) * 20 + 10];
+  };
+  let s = '';
+  const drawn = new Set();
+  for (const id of game.visited) {
+    if (!nodes[id].map) continue;
+    for (const to of Object.values(nodes[id].exits || {})) {
+      if (!to || !game.visited.has(to) || !nodes[to].map) continue;
+      const key = [id, to].sort().join('|');
+      if (drawn.has(key)) continue;
+      drawn.add(key);
+      const [x1, y1] = pos(id), [x2, y2] = pos(to);
+      s += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
+    }
+  }
+  for (const id of game.visited) {
+    if (!nodes[id].map) continue;
+    const [x, y] = pos(id);
+    const cls = id === game.node ? 'cur' : id === game.act.goal ? 'goal' : '';
+    s += `<circle cx="${x}" cy="${y}" r="${id === game.node ? 4 : 2.6}" class="${cls}"/>`;
+  }
+  ui.minimap.innerHTML = s;
+}
+
+// Cartel con el nombre de la escena al llegar (se desvanece solo).
+let nodeTagTimer = null;
+function showNodeName(node) {
+  if (!node.name) return;
+  ui.nodeTag.textContent = node.name;
+  ui.nodeTag.style.opacity = 1;
+  clearTimeout(nodeTagTimer);
+  nodeTagTimer = setTimeout(() => { ui.nodeTag.style.opacity = 0; }, 2600);
 }
 
 function renderHotspots(node) {
@@ -258,6 +328,7 @@ function tryMove(dir) {
   ui.viewport.classList.add(`move-${dir}`);
   spawnPassers(dir);
   SND.footstep();
+  if (use3d) SCENE3D.glideTo(to, game.node); // la cámara desliza por el sendero real
   setTimeout(() => {
     enterNode(to);
     SND.footstep();
@@ -312,6 +383,9 @@ window.addEventListener('keyup', e => { keys[e.code] = false; });
 window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 
 ui.pause.addEventListener('click', () => { if (game.state === 'pause') { game.state = 'play'; ui.pause.classList.add('hidden'); ui.hud.classList.remove('hidden'); } });
+ui.compass.addEventListener('click', e => {
+  if (e.target.dataset.dir) tryMove(e.target.dataset.dir);
+});
 ui.card.addEventListener('click', () => { if (game.state === 'card') beginAct(game.actIndex); });
 $('startBtn').addEventListener('click', () => {
   SND.init();
@@ -344,6 +418,7 @@ window.addEventListener('mousemove', e => {
   ui.viewport.style.setProperty('--look-y', `${(-dy * 16).toFixed(1)}px`);
   ui.viewport.style.setProperty('--look-x-fg', `${(-dx * 52).toFixed(1)}px`);
   ui.viewport.style.setProperty('--look-y-fg', `${(-dy * 32).toFixed(1)}px`);
+  if (use3d) SCENE3D.lookTo(lx, ly);
 });
 
 // ---------- entes sobre el grafo ----------
@@ -368,6 +443,8 @@ function updateEntities(dt) {
   }
   // corazón acelerado cuando algo está a 1-2 saltos
   SND.updateHeart(minHops <= 2 ? 1.2 * minHops : 99, game.time);
+  // entes 3D: visibles solo cuando están en tu nodo (fundido en tick)
+  if (use3d) SCENE3D.syncEntities(game.entities, game.node);
 
   // amenaza en tu nodo
   const here = game.entities.find(e => e.node === game.node);
@@ -416,6 +493,10 @@ function loop(now) {
   game.lampFlick = 0.82 + 0.18 * Math.max(0,
     Math.sin(t * 13) * Math.sin(t * 7.3 + 1.7) + Math.sin(t * 2.9) * 0.7) / 1.7;
   ui.light.style.opacity = game.lampFlick;
+  if (use3d) SCENE3D.tick(dt, {
+    flick: game.lampFlick,
+    torch: game.meter ? game.meter.v / game.meter.max : 1,
+  });
 
   // tecla mantenida = caminar (WASD continuo, ritmo de la transición)
   if (game.stepCd > 0) game.stepCd -= dt;

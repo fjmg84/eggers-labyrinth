@@ -43,11 +43,13 @@
     },
     nodes: {
       entrada: {
+        name: 'El Umbral del Bosque', map: [1, 0], image: 'act1/entrada.jpg',
         scene: 'a1-entrada',
         exits: { n: 'sendero' },
         hotspots: [],
       },
       sendero: {
+        name: 'El Sendero de las Huellas', map: [1, 1], image: 'act1/sendero.jpg',
         scene: 'a1-sendero',
         exits: { s: 'entrada', n: 'cruce', e: 'robledal' },
         hotspots: [{
@@ -56,11 +58,13 @@
         }],
       },
       cruce: {
+        name: 'El Cruce de las Tres Sendas', map: [1, 2], image: 'act1/cruce.jpg',
         scene: 'a1-cruce',
         exits: { s: 'sendero', n: 'pantano', e: 'claro', w: 'cercas' },
         hotspots: [],
       },
       pantano: {
+        name: 'El Pantano Negro', map: [1, 3], image: 'act1/pantano.jpg',
         scene: 'a1-pantano',
         dark: true,
         exits: { s: 'cruce', e: 'roca' },
@@ -74,6 +78,7 @@
         }],
       },
       roca: {
+        name: 'La Roca del Altar', map: [2, 3], image: 'act1/roca.jpg',
         scene: 'a1-roca',
         dark: true,
         exits: { w: 'pantano', s: 'huerto' },
@@ -87,6 +92,7 @@
         }],
       },
       robledal: {
+        name: 'El Robledal Espeso', map: [2, 1], image: 'act1/robledal.jpg',
         scene: 'a1-robledal',
         exits: { w: 'sendero', n: 'huerto' },
         hotspots: [{
@@ -95,11 +101,13 @@
         }],
       },
       huerto: {
+        name: 'El Huerto Muerto', map: [2, 2], image: 'act1/huerto.jpg',
         scene: 'a1-huerto',
         exits: { s: 'robledal', n: 'roca', e: 'cabaña_ext' },
         hotspots: [],
       },
       claro: {
+        name: 'El Claro de la Hoguera', map: [3, 1], image: 'act1/claro.jpg',
         scene: 'a1-claro',
         exits: { w: 'cruce', n: 'cabaña_ext' },
         hotspots: [{
@@ -108,6 +116,7 @@
         }],
       },
       cabaña_ext: {
+        name: 'Ante la Cabaña', map: [3, 2], pos: [3, 1.7], image: 'act1/cabana-ext.jpg',
         scene: 'a1-cabana-ext',
         exits: { s: 'claro', w: 'huerto', e: 'cabaña_in' },
         hotspots: [{
@@ -116,6 +125,7 @@
         }],
       },
       cabaña_in: {
+        name: 'El Interior de la Cabaña', map: [4, 2], pos: [3, 2], image: 'act1/cabana-in.jpg',
         scene: 'a1-cabana-in',
         exits: { w: 'cabaña_ext' },
         hotspots: [{
@@ -128,6 +138,7 @@
         }],
       },
       cercas: {
+        name: 'Las Cercas del Buen Dios', map: [0, 2], image: 'act1/cercas.jpg',
         scene: 'a1-cercas',
         exits: { e: 'cruce', n: 'muralla' },
         hotspots: [{
@@ -136,11 +147,13 @@
         }],
       },
       muralla: {
+        name: 'La Muralla del Bosque', map: [0, 3], image: 'act1/muralla.jpg',
         scene: 'a1-muralla',
         exits: { s: 'cercas', n: 'puerta' },
         hotspots: [],
       },
       puerta: {
+        name: 'La Puerta del Bosque', map: [0, 4], image: 'act1/puerta.jpg',
         scene: 'a1-puerta',
         exits: { s: 'muralla' },
         hotspots: [{
