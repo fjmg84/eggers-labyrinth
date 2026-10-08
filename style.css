@@ -43,16 +43,158 @@ body {
   filter: contrast(112%) brightness(92%);
   transition: transform 0.9s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-#viewport.nodemove { animation: nodeMove 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
-@keyframes nodeMove {
-  0%   { transform: scale(1); }
-  45%  { transform: scale(1.1) translateY(-1.5%); }
-  100% { transform: scale(1); }
+
+/* --- capa de salidas: senderos de luz hacia cada dirección transitable --- */
+#exits {
+  position: absolute;
+  inset: -4%;
+  transform: translate(var(--look-x), var(--look-y)) scale(1.05);
+  pointer-events: none;
 }
-#viewport.nodemove #scene-layer,
-#viewport.nodemove #entity-layer {
-  filter: blur(7px);
-  opacity: 0.25;
+.exit {
+  position: absolute;
+  opacity: 0;
+  animation: exitGlow 2.6s ease-in-out infinite alternate;
+}
+/* NORTE: senda en perspectiva que se pierde hacia el horizonte */
+.exit-n {
+  left: 40%; top: 46%; width: 20%; height: 54%;
+  background: linear-gradient(180deg, rgba(255, 226, 170, 0) 0%, rgba(255, 226, 170, 0.10) 30%, rgba(255, 226, 170, 0.30) 100%);
+  clip-path: polygon(44% 0, 56% 0, 100% 100%, 0 100%);
+  filter: blur(3px);
+}
+/* SUR: borde inferior iluminado (dónde has venido / vuelta) */
+.exit-s {
+  left: 30%; bottom: -2%; width: 40%; height: 16%;
+  background: linear-gradient(0deg, rgba(255, 226, 170, 0.30), rgba(255, 226, 170, 0.05) 70%, transparent);
+  clip-path: polygon(18% 100%, 82% 100%, 66% 0, 34% 0);
+  filter: blur(4px);
+}
+/* ESTE: resplandor que se abre por el lado derecho */
+.exit-e {
+  right: -2%; top: 42%; width: 34%; height: 46%;
+  background: linear-gradient(270deg, rgba(255, 226, 170, 0.32), rgba(255, 226, 170, 0.04) 65%, transparent);
+  clip-path: polygon(100% 18%, 100% 82%, 0 100%, 0 0);
+  filter: blur(5px);
+}
+/* OESTE: resplandor por el lado izquierdo */
+.exit-w {
+  left: -2%; top: 42%; width: 34%; height: 46%;
+  background: linear-gradient(90deg, rgba(255, 226, 170, 0.32), rgba(255, 226, 170, 0.04) 65%, transparent);
+  clip-path: polygon(0 18%, 0 82%, 100% 100%, 100% 0);
+  filter: blur(5px);
+}
+@keyframes exitGlow {
+  from { opacity: 0.45; }
+  to   { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .exit { animation: none; opacity: 0.7; }
+}
+
+
+#passers {
+  position: absolute;
+  inset: -4%;
+  transform: translate(var(--look-x-fg), var(--look-y-fg)) scale(1.05);
+  pointer-events: none;
+  overflow: hidden;
+}
+.passer {
+  position: absolute;
+  background: linear-gradient(180deg, #05060544 0%, #040504 45%, #020302 100%);
+  border-radius: 40% 40% 6% 6% / 18% 18% 3% 3%;
+  will-change: transform, opacity;
+  opacity: 0;
+}
+/* avance (W): las cosas crecen y se deslizan fuera de cuadro */
+.passer.dir-n { animation: passFwd 0.62s cubic-bezier(0.3, 0, 0.2, 1) both; }
+/* retroceso (S): retroceden hacia el centro, más lentas */
+.passer.dir-s { animation: passBack 0.62s cubic-bezier(0.3, 0, 0.2, 1) both; }
+/* giros (A/D): cruzan lateralmente con parallax fuerte */
+.passer.dir-w { animation: passLeft 0.6s cubic-bezier(0.3, 0, 0.2, 1) both; }
+.passer.dir-e { animation: passRight 0.6s cubic-bezier(0.3, 0, 0.2, 1) both; }
+@keyframes passFwd {
+  0%   { transform: translate(-50%, 0) scale(0.55); opacity: 0; }
+  25%  { opacity: 0.9; }
+  100% { transform: translate(-50%, 9%) scale(2.6); opacity: 0; }
+}
+@keyframes passBack {
+  0%   { transform: translate(-50%, 9%) scale(2.4); opacity: 0; }
+  30%  { opacity: 0.8; }
+  100% { transform: translate(-50%, 0) scale(0.5); opacity: 0; }
+}
+@keyframes passLeft {
+  0%   { transform: translate(calc(-50% + 60vw), 0) scale(1.4); opacity: 0; }
+  25%  { opacity: 0.9; }
+  100% { transform: translate(calc(-50% - 70vw), 0) scale(1.1); opacity: 0; }
+}
+@keyframes passRight {
+  0%   { transform: translate(calc(-50% - 70vw), 0) scale(1.4); opacity: 0; }
+  25%  { opacity: 0.9; }
+  100% { transform: translate(calc(-50% + 60vw), 0) scale(1.1); opacity: 0; }
+}
+
+/* --- movimientos direccionales de cámara (una dirección por paso) --- */
+/* W/S: avance/retroceso = acercamiento (dolly) sobre la capa de escena */
+#viewport.move-n #scene-layer { animation: dollyIn 0.62s cubic-bezier(0.35, 0, 0.2, 1); }
+#viewport.move-n #entity-layer { animation: dollyInFg 0.62s cubic-bezier(0.35, 0, 0.2, 1); }
+#viewport.move-s #scene-layer { animation: dollyOut 0.62s cubic-bezier(0.35, 0, 0.2, 1); }
+#viewport.move-s #entity-layer { animation: dollyOutFg 0.62s cubic-bezier(0.35, 0, 0.2, 1); }
+/* A/D: paneo — la capa de entes corre el doble que el fondo (profundidad) */
+#viewport.move-w #scene-layer { animation: panL 0.6s cubic-bezier(0.35, 0, 0.2, 1); }
+#viewport.move-w #entity-layer { animation: panLFg 0.6s cubic-bezier(0.35, 0, 0.2, 1); }
+#viewport.move-e #scene-layer { animation: panR 0.6s cubic-bezier(0.35, 0, 0.2, 1); }
+#viewport.move-e #entity-layer { animation: panRFg 0.6s cubic-bezier(0.35, 0, 0.2, 1); }
+
+@keyframes dollyIn {
+  0%   { transform: translate(var(--look-x), var(--look-y)) scale(1.05); opacity: 1; }
+  48%  { opacity: 0.1; filter: blur(6px); }
+  52%  { opacity: 0.1; filter: blur(6px); transform: translate(var(--look-x), var(--look-y)) scale(1.3); }
+  100% { transform: translate(var(--look-x), var(--look-y)) scale(1.05); opacity: 1; filter: blur(0); }
+}
+@keyframes dollyOut {
+  0%   { transform: translate(var(--look-x), var(--look-y)) scale(1.05); opacity: 1; }
+  48%  { opacity: 0.1; filter: blur(6px); transform: translate(var(--look-x), var(--look-y)) scale(0.85); }
+  52%  { opacity: 0.1; filter: blur(6px); }
+  100% { transform: translate(var(--look-x), var(--look-y)) scale(1.05); opacity: 1; filter: blur(0); }
+}
+/* la capa de entes usa su propio peso de parallax en el dolly */
+@keyframes dollyInFg {
+  0%   { transform: translate(var(--look-x-fg), var(--look-y-fg)) scale(1.05); opacity: 1; }
+  48%  { opacity: 0.1; filter: blur(6px); }
+  52%  { opacity: 0.1; filter: blur(6px); transform: translate(var(--look-x-fg), var(--look-y-fg)) scale(1.42); }
+  100% { transform: translate(var(--look-x-fg), var(--look-y-fg)) scale(1.05); opacity: 1; filter: blur(0); }
+}
+@keyframes dollyOutFg {
+  0%   { transform: translate(var(--look-x-fg), var(--look-y-fg)) scale(1.05); opacity: 1; }
+  48%  { opacity: 0.1; filter: blur(6px); transform: translate(var(--look-x-fg), var(--look-y-fg)) scale(0.75); }
+  52%  { opacity: 0.1; filter: blur(6px); }
+  100% { transform: translate(var(--look-x-fg), var(--look-y-fg)) scale(1.05); opacity: 1; filter: blur(0); }
+}
+@keyframes panL {
+  0%   { transform: translate(var(--look-x), var(--look-y)) scale(1.05); opacity: 1; }
+  48%  { opacity: 0.1; filter: blur(6px); transform: translate(calc(var(--look-x) - 6%), var(--look-y)) scale(1.08); }
+  52%  { opacity: 0.1; filter: blur(6px); transform: translate(calc(var(--look-x) + 6%), var(--look-y)) scale(1.08); }
+  100% { transform: translate(var(--look-x), var(--look-y)) scale(1.05); opacity: 1; filter: blur(0); }
+}
+@keyframes panLFg {
+  0%   { transform: translate(var(--look-x-fg), var(--look-y-fg)) scale(1.05); opacity: 1; }
+  48%  { opacity: 0.1; filter: blur(6px); transform: translate(calc(var(--look-x-fg) - 14%), var(--look-y-fg)) scale(1.1); }
+  52%  { opacity: 0.1; filter: blur(6px); transform: translate(calc(var(--look-x-fg) + 14%), var(--look-y-fg)) scale(1.1); }
+  100% { transform: translate(var(--look-x-fg), var(--look-y-fg)) scale(1.05); opacity: 1; filter: blur(0); }
+}
+@keyframes panR {
+  0%   { transform: translate(var(--look-x), var(--look-y)) scale(1.05); opacity: 1; }
+  48%  { opacity: 0.1; filter: blur(6px); transform: translate(calc(var(--look-x) + 6%), var(--look-y)) scale(1.08); }
+  52%  { opacity: 0.1; filter: blur(6px); transform: translate(calc(var(--look-x) - 6%), var(--look-y)) scale(1.08); }
+  100% { transform: translate(var(--look-x), var(--look-y)) scale(1.05); opacity: 1; filter: blur(0); }
+}
+@keyframes panRFg {
+  0%   { transform: translate(var(--look-x-fg), var(--look-y-fg)) scale(1.05); opacity: 1; }
+  48%  { opacity: 0.1; filter: blur(6px); transform: translate(calc(var(--look-x-fg) + 14%), var(--look-y-fg)) scale(1.1); }
+  52%  { opacity: 0.1; filter: blur(6px); transform: translate(calc(var(--look-x-fg) - 14%), var(--look-y-fg)) scale(1.1); }
+  100% { transform: translate(var(--look-x-fg), var(--look-y-fg)) scale(1.05); opacity: 1; filter: blur(0); }
 }
 #viewport.bump { animation: bump 0.28s ease; }
 @keyframes bump {
@@ -82,6 +224,22 @@ body {
   border: 1px solid transparent;
   border-radius: 3px;
   transition: border-color 0.25s, background 0.25s, box-shadow 0.25s;
+}
+/* destello tenue siempre visible: el jugador ve qué es interactivo */
+.hotspot::after {
+  content: '';
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 9px; height: 9px;
+  margin: -5px 0 0 -5px;
+  background: radial-gradient(circle, rgba(255, 236, 200, 0.95), rgba(255, 220, 160, 0.25) 55%, transparent 75%);
+  box-shadow: 0 0 14px rgba(255, 220, 160, 0.65);
+  pointer-events: none;
+  animation: hsGlint 2.4s ease-in-out infinite;
+}
+@keyframes hsGlint {
+  0%, 100% { transform: scale(0.55); opacity: 0.35; }
+  50%      { transform: scale(1.25); opacity: 1; }
 }
 .hotspot:hover {
   border-color: rgba(255, 224, 176, 0.75);
@@ -115,8 +273,8 @@ body {
   inset: 0;
   pointer-events: none;
   background: radial-gradient(circle at var(--light-x) var(--light-y),
-      transparent 12%, rgba(5, 5, 5, 0.5) 48%, rgba(0, 0, 0, 0.93) 92%);
-  box-shadow: inset 0 0 90px rgba(0, 0, 0, 0.85);
+      transparent 14%, rgba(5, 5, 5, 0.35) 52%, rgba(0, 0, 0, 0.82) 94%);
+  box-shadow: inset 0 0 70px rgba(0, 0, 0, 0.6);
 }
 
 /* --- grano de película --- */
@@ -148,77 +306,337 @@ body {
   z-index: 6;
 }
 
-/* ============ escenarios placeholder (CSS puro) ============ */
-/* Se sustituyen por capas de imagen HD cuando lleguen las fotos. */
-
-/* entrada: muro de piedra con umbral adelante */
-.demo-entrada {
+/* ============ ACTO I: LA BRUJA — escenarios (CSS puro, fotos luego) ============ */
+/* Regla de legibilidad: troncos NEGROS sobre niebla CLARA (contraluz).
+   Cada nodo cambia troncos, niebla, luna y encuadre para que se distinga. */
+.a1-entrada, .a1-sendero, .a1-cruce, .a1-robledal, .a1-huerto,
+.a1-cercas, .a1-muralla, .a1-claro, .a1-roca, .a1-pantano {
+  --sky-top: #151a14;
+  --sky-hz: #2b342c;
+  --halo: rgba(186, 202, 190, 0.32);
+  --trunk-w: 46px;
+  --tilt: 90deg;
+  --moon-x: 72%;
+  --frame-l: 5%;
+  --frame-r: 5%;
   background:
-    radial-gradient(ellipse 40% 55% at 50% 62%, rgba(180, 140, 90, 0.28), transparent 70%),
-    linear-gradient(180deg, #0a0908 0%, #14110d 45%, #1a150f 70%, #070605 100%),
-    repeating-linear-gradient(90deg, #17140f 0 78px, #100d0a 78px 82px),
-    #0d0b09;
+    repeating-linear-gradient(var(--tilt), rgba(5, 7, 5, 0.97) 0 var(--trunk-w), transparent var(--trunk-w) calc(var(--trunk-w) * 2.3)),
+    radial-gradient(circle 40px at var(--moon-x) 13%, #f2f5ee 0%, rgba(240, 244, 236, 0.40) 55%, transparent 78%),
+    radial-gradient(ellipse 85% 50% at 52% 36%, var(--halo), transparent 70%),
+    linear-gradient(180deg, var(--sky-top) 0%, var(--sky-hz) 42%, #1b211a 52%, #0c0f0a 68%, #070806 100%);
 }
-.demo-entrada::before {
+/* encuadre: dos troncos grandes en los bordes + sombra de suelo */
+.a1-entrada::before, .a1-sendero::before, .a1-cruce::before, .a1-robledal::before,
+.a1-huerto::before, .a1-cercas::before, .a1-muralla::before, .a1-claro::before,
+.a1-roca::before, .a1-pantano::before {
+  content: '';
+  position: absolute; inset: 0;
+  background:
+    linear-gradient(90deg, #030403 0 var(--frame-l), transparent var(--frame-l) calc(100% - var(--frame-r)), #030403 calc(100% - var(--frame-r)) 100%),
+    linear-gradient(180deg, transparent 0 62%, rgba(0, 0, 0, 0.45) 100%);
+}
+/* variación por nodo: densidad de bosque, luna y encuadre */
+.a1-entrada  { --trunk-w: 54px; --moon-x: 74%; --frame-l: 6%; --frame-r: 6%; --halo: rgba(190, 206, 194, 0.36); }
+.a1-sendero  { --trunk-w: 30px; --tilt: 88deg; --frame-l: 11%; --frame-r: 4%; --sky-hz: #26301f; }
+.a1-cruce    { --trunk-w: 62px; --tilt: 93deg; --moon-x: 50%; --frame-l: 4%; --frame-r: 4%; --halo: rgba(196, 210, 200, 0.40); }
+.a1-robledal { --trunk-w: 74px; --tilt: 87deg; --frame-l: 9%; --frame-r: 13%; --sky-top: #101410; }
+.a1-huerto   { --trunk-w: 38px; --tilt: 94deg; --frame-l: 5%; --frame-r: 9%; --moon-x: 26%; }
+.a1-cercas   { --trunk-w: 66px; --frame-l: 12%; --frame-r: 7%; --sky-hz: #303427; }
+.a1-muralla  { --trunk-w: 84px; --tilt: 96deg; --frame-l: 3%; --frame-r: 3%; --sky-top: #0e120e; }
+.a1-claro    { --trunk-w: 58px; --halo: rgba(220, 205, 170, 0.34); --frame-l: 8%; --frame-r: 8%; }
+
+/* entrada: claro de niebla al fondo — el camino se abre */
+.a1-entrada::after {
   content: '';
   position: absolute;
-  left: 41%; top: 28%; width: 18%; height: 46%;
-  background: linear-gradient(180deg, #241a10, #0c0906);
-  border: 3px solid #32261a;
-  border-bottom: none;
-  border-radius: 40% 40% 0 0 / 22% 22% 0 0;
-  box-shadow: inset 0 0 34px #000, 0 0 46px rgba(0, 0, 0, 0.8);
+  left: 32%; top: 26%; width: 36%; height: 52%;
+  background:
+    radial-gradient(ellipse at 50% 55%, rgba(226, 234, 222, 0.55), rgba(200, 212, 200, 0.18) 55%, transparent 75%);
+  clip-path: polygon(34% 0, 66% 0, 100% 100%, 0 100%);
+  filter: blur(5px);
 }
-.demo-entrada::after {
+
+/* sendero: camino de tierra que se pierde entre los troncos */
+.a1-sendero::after {
   content: '';
   position: absolute;
-  left: 44.5%; top: 33%; width: 11%; height: 40%;
-  background: linear-gradient(180deg, rgba(255, 214, 150, 0.5), rgba(160, 110, 50, 0.12));
+  left: 26%; top: 55%; width: 48%; height: 45%;
+  background: linear-gradient(180deg, rgba(205, 198, 172, 0.34), rgba(170, 162, 132, 0.10) 70%, transparent);
+  clip-path: polygon(40% 0, 60% 0, 96% 100%, 4% 100%);
+  filter: blur(2px);
+}
+
+/* cruce: tres claros visibles — norte, este y oeste */
+.a1-cruce::after {
+  content: '';
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse 16% 30% at 6% 58%, rgba(216, 226, 214, 0.42), transparent 70%),
+    radial-gradient(ellipse 16% 30% at 94% 58%, rgba(216, 226, 214, 0.42), transparent 70%),
+    radial-gradient(ellipse 26% 34% at 50% 34%, rgba(224, 232, 220, 0.46), transparent 72%);
   filter: blur(3px);
-  opacity: 0.75;
 }
 
-/* pasillo: corredor en perspectiva */
-.demo-pasillo {
+/* robledal: copas macizas recortadas contra la niebla */
+.a1-robledal::after {
+  content: '';
+  position: absolute;
+  left: 8%; top: 10%; width: 84%; height: 66%;
   background:
-    linear-gradient(180deg, transparent 0 58%, rgba(0,0,0,0.55) 100%),
-    conic-gradient(from 90deg at 50% 50%,
-      #050403 0deg, #1c1712 55deg, #050403 90deg,
-      #1c1712 125deg, #050403 180deg,
-      #17130e 235deg, #050403 270deg,
-      #17130e 305deg, #050403 360deg);
-}
-.demo-pasillo::before {
-  content: '';
-  position: absolute;
-  left: 36%; top: 30%; width: 28%; height: 44%;
-  background: radial-gradient(ellipse at 50% 45%, #2a2118, #0b0907 75%);
-  box-shadow: inset 0 0 40px #000;
-}
-.demo-pasillo::after {
-  content: '';
-  position: absolute;
-  left: 46%; top: 38%; width: 8%; height: 24%;
-  background: radial-gradient(ellipse, rgba(255, 220, 160, 0.55), transparent 70%);
-  filter: blur(6px);
+    radial-gradient(ellipse 32% 74% at 18% 100%, #040604 62%, transparent 66%),
+    radial-gradient(ellipse 38% 86% at 52% 100%, #030503 64%, transparent 68%),
+    radial-gradient(ellipse 32% 74% at 86% 100%, #040604 62%, transparent 66%);
 }
 
-/* cámara: sala con el umbral de salida resplandeciente */
-.demo-camara {
-  background:
-    radial-gradient(ellipse 30% 46% at 50% 48%, rgba(255, 236, 190, 0.55), rgba(255, 200, 120, 0.14) 55%, transparent 75%),
-    radial-gradient(ellipse 80% 70% at 50% 55%, #191410, #060504 80%),
-    #0a0806;
-}
-.demo-camara::before {
+/* huerto: setos podados sobre tierra clara */
+.a1-huerto::after {
   content: '';
   position: absolute;
-  left: 42%; top: 26%; width: 16%; height: 50%;
-  background: linear-gradient(180deg, #fff3d6, #e8c47a 60%, #a5834a);
-  border-radius: 46% 46% 4px 4px / 28% 28% 0 0;
+  left: 4%; top: 56%; width: 92%; height: 36%;
+  background:
+    repeating-linear-gradient(176deg, #0c110b 0 24px, #141b12 24px 48px),
+    #0e130d;
+  border-top: 4px solid #26301f;
+  box-shadow: 0 -10px 26px rgba(0, 0, 0, 0.5);
+}
+
+/* cercas: empalizada de estacas iluminada por la luna */
+.a1-cercas::after {
+  content: '';
+  position: absolute;
+  left: 2%; top: 42%; width: 96%; height: 44%;
+  background:
+    repeating-linear-gradient(90deg, #1a1408 0 16px, #3a2d14 16px 20px, #0d0a05 20px 30px),
+    linear-gradient(180deg, rgba(210, 216, 200, 0.14), rgba(0, 0, 0, 0.4));
+  box-shadow: inset 0 10px 22px rgba(0, 0, 0, 0.6), 0 -6px 18px rgba(0, 0, 0, 0.45);
+}
+
+/* muralla: muro de raíces que tapa el cielo */
+.a1-muralla::after {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; width: 100%; height: 74%;
+  background:
+    repeating-linear-gradient(96deg, #080a06 0 34px, #141a0d 34px 40px),
+    radial-gradient(ellipse 60% 50% at 50% 100%, rgba(180, 195, 175, 0.16), transparent);
+  box-shadow: inset 0 -30px 44px rgba(0, 0, 0, 0.75);
+}
+
+/* claro: hoguera viva (la única calidez del bosque) */
+.a1-claro::after {
+  content: '';
+  position: absolute;
+  left: 33%; top: 48%; width: 34%; height: 46%;
+  background:
+    radial-gradient(ellipse at 50% 72%, rgba(255, 190, 80, 0.85), rgba(255, 120, 30, 0.30) 45%, transparent 74%);
+  filter: blur(4px);
+  animation: fireFlick 2.2s ease-in-out infinite alternate;
+}
+@keyframes fireFlick {
+  from { transform: scale(1) translateY(0); opacity: 0.85; }
+  to   { transform: scale(1.07) translateY(-1.5%); opacity: 1; }
+}
+
+/* roca: monolito erguido bajo la luna (zona oscura) */
+.a1-roca {
+  --trunk-w: 70px; --tilt: 91deg; --frame-l: 7%; --frame-r: 5%;
+  --sky-top: #101418; --sky-hz: #232c33; --halo: rgba(178, 194, 210, 0.34);
+  background:
+    repeating-linear-gradient(var(--tilt), rgba(5, 7, 8, 0.97) 0 var(--trunk-w), transparent var(--trunk-w) calc(var(--trunk-w) * 2.3)),
+    radial-gradient(circle 36px at 30% 12%, #eef2f6 0%, rgba(238, 242, 246, 0.38) 55%, transparent 78%),
+    radial-gradient(ellipse 85% 50% at 50% 38%, var(--halo), transparent 70%),
+    linear-gradient(180deg, var(--sky-top) 0%, var(--sky-hz) 42%, #161b20 52%, #0a0d10 68%, #060708 100%);
+}
+.a1-roca::after {
+  content: '';
+  position: absolute;
+  left: 34%; top: 28%; width: 32%; height: 56%;
+  background: linear-gradient(168deg, #262d31, #0c0f11 74%);
+  border-radius: 8px 14px 0 0;
+  box-shadow: inset -10px 0 26px #000, 0 14px 40px rgba(0, 0, 0, 0.9);
+}
+.a1-roca::before {
+  background:
+    linear-gradient(90deg, #030405 0 var(--frame-l), transparent var(--frame-l) calc(100% - var(--frame-r)), #030405 calc(100% - var(--frame-r)) 100%),
+    linear-gradient(180deg, transparent 0 62%, rgba(0, 0, 0, 0.5) 100%);
+}
+
+/* pantano: espejo de agua con reflejo de luna (zona oscura) */
+.a1-pantano {
+  --trunk-w: 50px; --tilt: 89deg; --frame-l: 8%; --frame-r: 8%;
+  --sky-top: #0e1417; --sky-hz: #22302e; --halo: rgba(170, 196, 190, 0.32);
+  background:
+    repeating-linear-gradient(var(--tilt), rgba(4, 6, 7, 0.97) 0 var(--trunk-w), transparent var(--trunk-w) calc(var(--trunk-w) * 2.3)),
+    radial-gradient(circle 36px at 66% 12%, #eef4f2 0%, rgba(238, 244, 242, 0.38) 55%, transparent 78%),
+    radial-gradient(ellipse 85% 46% at 50% 34%, var(--halo), transparent 70%),
+    linear-gradient(180deg, var(--sky-top) 0%, var(--sky-hz) 42%, #141d1a 52%, #0a100d 68%, #060a08 100%);
+}
+.a1-pantano::after {
+  content: '';
+  position: absolute;
+  left: 0; top: 56%; width: 100%; height: 42%;
+  background:
+    repeating-linear-gradient(180deg, rgba(200, 222, 214, 0.14) 0 3px, transparent 3px 15px),
+    radial-gradient(ellipse 44% 62% at 58% 26%, rgba(214, 232, 226, 0.34), transparent 76%);
+}
+.a1-pantano::before {
+  background:
+    linear-gradient(90deg, #030504 0 var(--frame-l), transparent var(--frame-l) calc(100% - var(--frame-r)), #030504 calc(100% - var(--frame-r)) 100%),
+    linear-gradient(180deg, transparent 0 66%, rgba(0, 0, 0, 0.4) 100%);
+}
+
+/* cabaña exterior: casita de troncos con ventana encendida */
+.a1-cabana-ext {
+  background:
+    radial-gradient(ellipse 26% 22% at 34% 44%, rgba(255, 200, 120, 0.4), transparent 70%),
+    radial-gradient(ellipse 85% 44% at 52% 34%, rgba(184, 200, 188, 0.30), transparent 70%),
+    linear-gradient(180deg, #161a14 0%, #232a1e 42%, #141a10 56%, #0a0d08 100%),
+    repeating-linear-gradient(90deg, #0a0c07 0 44px, transparent 44px 120px);
+}
+.a1-cabana-ext::before {
+  content: '';
+  position: absolute;
+  left: 24%; top: 34%; width: 52%; height: 52%;
+  background: linear-gradient(180deg, #1d160b, #0f0b07);
+  clip-path: polygon(0 28%, 50% 0, 100% 28%, 100% 100%, 0 100%);
+  box-shadow: inset 0 0 40px #000, 0 10px 40px rgba(0, 0, 0, 0.8);
+}
+.a1-cabana-ext::after {
+  content: '';
+  position: absolute;
+  left: 30%; top: 46%; width: 10%; height: 14%;
+  background: linear-gradient(180deg, #ffe3ad, #c98f3e);
+  box-shadow: 0 0 34px rgba(255, 205, 130, 0.95), 0 0 90px rgba(255, 190, 100, 0.5);
+}
+
+/* cabaña interior: tablones, vela y mesa */
+.a1-cabana-in {
+  background:
+    radial-gradient(ellipse 30% 26% at 50% 52%, rgba(255, 210, 140, 0.30), transparent 72%),
+    repeating-linear-gradient(180deg, #1a140c 0 34px, #120e08 34px 37px),
+    #100c07;
+}
+.a1-cabana-in::before {
+  content: '';
+  position: absolute;
+  left: 26%; top: 62%; width: 48%; height: 22%;
+  background: linear-gradient(180deg, #241a0f, #0e0a06);
+  box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.7), inset 0 4px 8px #3a2b18;
+}
+.a1-cabana-in::after {
+  content: '';
+  position: absolute;
+  left: 48%; top: 54%; width: 5%; height: 10%;
+  background: linear-gradient(180deg, #fff2c8, #e0a84a);
+  border-radius: 50% 50% 40% 40%;
+  box-shadow: 0 0 30px rgba(255, 210, 140, 0.85);
+}
+
+/* puerta del bosque: umbral de luz (la salida) */
+.a1-puerta {
+  background:
+    radial-gradient(ellipse 34% 52% at 50% 50%, rgba(245, 236, 210, 0.5), rgba(200, 190, 150, 0.12) 55%, transparent 76%),
+    radial-gradient(ellipse 85% 75% at 50% 55%, #12140e, #050604 82%),
+    #070805;
+}
+.a1-puerta::before {
+  content: '';
+  position: absolute;
+  left: 38%; top: 22%; width: 24%; height: 56%;
+  background: linear-gradient(180deg, #fff8e2, #ecd9a4 55%, #a5906a);
+  border-radius: 46% 46% 3px 3px / 30% 30% 0 0;
+  box-shadow: 0 0 70px rgba(255, 240, 200, 0.7), 0 0 170px rgba(255, 230, 170, 0.35);
+}
+
+/* ============ entes (siluetas) ============ */
+.creature {
+  position: absolute;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+/* Black Phillip: lomo y cuernos a contraluz */
+.creature.goat {
+  left: 58%; top: 34%; width: 26%; height: 46%;
+  background: radial-gradient(ellipse 60% 70% at 50% 75%, #040404 62%, transparent 75%);
+}
+.creature.goat::before {
+  content: '';
+  position: absolute;
+  left: 30%; top: 0; width: 44%; height: 40%;
+  background: #020202;
+  border-radius: 50% 50% 42% 42%;
+  box-shadow:
+    -14px -16px 0 -9px #020202,
+    14px -16px 0 -9px #020202;
+}
+.creature.goat::after {
+  content: '';
+  position: absolute;
+  left: 38%; top: 26%; width: 26%; height: 6%;
+  background: radial-gradient(ellipse at 30% 50%, #ffd25e, #7a5a10 70%, transparent),
+              radial-gradient(ellipse at 70% 50%, #ffd25e, #7a5a10 70%, transparent);
+  filter: blur(0.5px);
+}
+/* La Bruja: figura alargada con velo */
+.creature.witch {
+  left: 34%; top: 16%; width: 32%; height: 68%;
+  background: radial-gradient(ellipse 55% 46% at 50% 88%, #000 68%, transparent 78%);
+}
+.creature.witch::before {
+  content: '';
+  position: absolute;
+  left: 34%; top: 8%; width: 32%; height: 30%;
+  background: #000;
+  border-radius: 50% 50% 30% 30%;
+  box-shadow: 0 -6px 14px #000;
+}
+.creature.witch::after {
+  content: '';
+  position: absolute;
+  left: 44%; top: 16%; width: 12%; height: 5%;
+  background: radial-gradient(ellipse, rgba(255, 60, 40, 0.9), transparent 75%);
   filter: blur(1px);
-  box-shadow: 0 0 70px rgba(255, 220, 150, 0.75), 0 0 160px rgba(255, 200, 120, 0.4);
 }
+
+/* amenaza en tu nodo: distorsión de pánico */
+#viewport.threat #scene-layer { filter: contrast(1.35) saturate(0.6); }
+#viewport.threat:not(.bump) { animation: panic 0.5s ease-in-out infinite alternate; }
+@keyframes panic {
+  from { transform: scale(1); filter: none; }
+  to   { transform: scale(1.012); filter: brightness(1.06); }
+}
+
+/* ============ medidor (antorcha / aceite) ============ */
+#meter {
+  position: absolute;
+  left: 3%; bottom: 7%;
+  width: 17%;
+}
+#meter .meterLabel {
+  display: block;
+  font-family: 'Cinzel', serif;
+  font-size: 0.62rem;
+  letter-spacing: 0.3em;
+  color: #b8a87e;
+  margin-bottom: 4px;
+}
+#meter .meterBar {
+  height: 7px;
+  background: rgba(20, 16, 10, 0.85);
+  border: 1px solid #6b5f42;
+  overflow: hidden;
+}
+#meter .meterBar i {
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #8a6a28, #e8b64c);
+  transition: width 0.3s linear;
+}
+#meter.empty .meterBar { border-color: #a44; }
+#meter.empty .meterBar i { background: linear-gradient(90deg, #6a2020, #c44); }
+#meter.empty .meterLabel { color: #c76a6a; }
 
 /* ============ HUD ============ */
 #hud { position: absolute; inset: 0; pointer-events: none; z-index: 5; }

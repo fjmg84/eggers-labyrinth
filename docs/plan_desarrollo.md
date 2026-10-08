@@ -18,6 +18,9 @@ Flujo: una rama por fase → tú commiteas, pusheas y mergeas a `main` → sigui
 - [x] `js/nodes.js`: grafo de nodos por acto `{id, capas CSS, salidas WASD, hotspots, spawns}` + BFS de alcanzabilidad
 - [x] `js/engine.js`: flujo de pantallas (título → cartela → juego → muerte → victoria) reutilizando el DOM actual
 - [x] Movimiento WASD/flechas entre nodos con transición cinemática
+- [x] Movimiento continuo: mantener la tecla camina (ritmo ~0.6 s por paso)
+- [x] Transición direccional: dolly (W/S) y paneo con parallax (A/D)
+- [x] Capa `#passers`: siluetas que barren la pantalla en cada paso
 - [x] Parallax de mirada con ratón + linterna siguiendo el cursor
 - [x] Interacción `E`/clic en hotspots
 - [x] HUD de objetivo/inventario genérico
@@ -30,14 +33,18 @@ Flujo: una rama por fase → tú commiteas, pusheas y mergeas a `main` → sigui
 
 ## Fase 2 — Acto I: *La Bruja* (rama `acto-i` desde main)
 
-- [ ] ~12-14 nodos CSS: bosque claustrofóbico, claros, cabaña puritana
-- [ ] Objetivo: 3 Páginas de la Sangre → Puerta del Bosque
-- [ ] Mecánica: antorcha que se consume (medidor)
-- [ ] Ente: Black Phillip (acecha desde la penumbra)
-- [ ] Ente: La Bruja (aparece si te demoras en zonas oscuras)
-- [ ] Lore del guion: texto inicial, manuscrito puritano, línea de Black Phillip
-- [ ] Estética: frío/desaturado, grano 35mm, niebla reactiva a la linterna, partículas en el haz
-- [ ] Validar con `tools/check_nodes.js`
+- [x] ~12-14 nodos CSS: bosque claustrofóbico, claros, cabaña puritana (13 nodos, `js/act1.js`)
+- [x] Objetivo: 3 Páginas de la Sangre → Puerta del Bosque
+- [x] Mecánica: antorcha que se consume (medidor)
+- [x] Ente: Black Phillip (acecha desde la penumbra)
+- [x] Ente: La Bruja (aparece si te demoras en zonas oscuras)
+- [x] Lore del guion: texto inicial, manuscrito puritano, línea de Black Phillip
+- [x] Estética: frío/desaturado, grano 35mm, niebla reactiva a la linterna, partículas en el haz
+- [x] Validar con `tools/check_nodes.js`
+- [x] Escenarios legibles: siluetas negras sobre niebla clara, luna y encuadre por nodo
+- [x] Capa `#exits`: senderos de luz pulsantes hacia cada salida disponible
+- [x] Destello siempre visible en hotspots (`::after`) para identificar lo interactivo
+- [x] Luminosidad global: atmósfera `brightness(0.9)` + viñeta suavizada
 - [ ] **CHECKPOINT: tú mergeas a `main`**
 
 ## Fase 3 — Acto II: *El Faro* (rama `acto-ii` desde main)

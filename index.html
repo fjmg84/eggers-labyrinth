@@ -14,7 +14,9 @@
   <!-- viewport por capas: fondo → profundidad → entes → niebla → luz → lente -->
   <div id="viewport">
     <div id="scene-layer"></div>
+    <div id="exits"></div>
     <div id="entity-layer"></div>
+    <div id="passers"></div>
     <canvas id="fog" width="640" height="384"></canvas>
     <div id="light"></div>
     <div id="lens"></div>
@@ -27,6 +29,7 @@
     <div id="chapterTag"></div>
     <div id="objective"></div>
     <div id="inventory"></div>
+    <div id="meter" class="hidden"><span class="meterLabel"></span><div class="meterBar"><i></i></div></div>
     <div id="prompt"></div>
     <div id="msg"></div>
   </div>
@@ -98,7 +101,7 @@
 </div>
 <script src="js/audio.js"></script>
 <script src="js/nodes.js"></script>
-<script src="js/demo.js"></script>
+<script src="js/act1.js"></script>
 <script src="js/engine.js"></script>
 </body>
 </html>

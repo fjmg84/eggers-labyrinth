@@ -26,6 +26,31 @@ function reachable(act) {
   return seen;
 }
 
+// distancias (Map id→hops) desde un nodo
+function bfsDist(act, fromId) {
+  const dist = new Map([[fromId, 0]]);
+  const q = [fromId];
+  for (let h = 0; h < q.length; h++) {
+    const id = q[h], d = dist.get(id);
+    for (const nb of neighbors(act.nodes[id] || {})) {
+      if (!dist.has(nb) && act.nodes[nb]) { dist.set(nb, d + 1); q.push(nb); }
+    }
+  }
+  return dist;
+}
+
+// un paso desde `from` hacia `to` (siguiente nodo en el camino más corto)
+function stepToward(act, fromId, toId) {
+  if (fromId === toId) return null;
+  const dist = bfsDist(act, toId);
+  let best = null, bestD = Infinity;
+  for (const nb of neighbors(act.nodes[fromId] || {})) {
+    const d = dist.get(nb);
+    if (d != null && d < bestD) { bestD = d; best = nb; }
+  }
+  return best;
+}
+
 // Errores de estructura: [] = válido.
 function validateAct(act) {
   const errs = [];
@@ -46,6 +71,6 @@ function validateAct(act) {
 }
 
 // exportación: navegador por globals, node para tools/check_nodes.js
-const NODES_API = { ACTS, registerAct, reachable, validateAct };
+const NODES_API = { ACTS, registerAct, reachable, validateAct, bfsDist, stepToward };
 if (typeof window !== 'undefined') window.NODES = NODES_API;
 if (typeof module !== 'undefined') module.exports = NODES_API;
