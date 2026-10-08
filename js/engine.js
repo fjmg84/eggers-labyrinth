@@ -43,6 +43,8 @@ const game = {
 };
 const keys = {};
 let msgTimer = null;
+// motor 3D si Three.js cargó (mundo procedural); si no, escenas CSS/foto 2D
+const use3d = !!(window.THREE && window.SCENE3D);
 
 // partículas de niebla (una sola vez)
 const motes = Array.from({ length: 42 }, () => ({
@@ -100,6 +102,13 @@ function beginAct(index) {
   game.entities = (act.entities || []).map(e => ({ ...e, node: e.from, fade: 0 }));
   game.visited = new Set();
   ui.minimap.classList.toggle('hidden', !Object.values(act.nodes).some(n => n.map));
+  if (use3d) {
+    SCENE3D.init();
+    SCENE3D.buildAct(act);
+    ui.viewport.classList.add('mode-3d');
+  } else {
+    ui.viewport.classList.remove('mode-3d');
+  }
   setActAtmosphere(act);
   ui.meter.classList.toggle('hidden', !game.meter);
   document.querySelector('#meter .meterLabel').textContent = act.meter ? act.meter.label : '';
@@ -166,9 +175,13 @@ function enterNode(id, instant) {
   if (!node) return;
   game.node = id;
   game.visited.add(id);
-  // foto HD del nodo si existe; si no, el escenario CSS de siempre (fallback)
-  ui.scene.className = node.image ? 'scene-photo' : (node.scene || '');
-  ui.scene.style.backgroundImage = node.image ? `url(assets/img/${node.image})` : '';
+  if (use3d) {
+    SCENE3D.enterNode(id, instant);
+  } else {
+    // foto HD del nodo si existe; si no, el escenario CSS de siempre (fallback)
+    ui.scene.className = node.image ? 'scene-photo' : (node.scene || '');
+    ui.scene.style.backgroundImage = node.image ? `url(assets/img/${node.image})` : '';
+  }
   renderHotspots(node);
   renderExits(node);
   updateCompass(node);
@@ -315,6 +328,7 @@ function tryMove(dir) {
   ui.viewport.classList.add(`move-${dir}`);
   spawnPassers(dir);
   SND.footstep();
+  if (use3d) SCENE3D.glideTo(to, game.node); // la cámara desliza por el sendero real
   setTimeout(() => {
     enterNode(to);
     SND.footstep();
@@ -404,6 +418,7 @@ window.addEventListener('mousemove', e => {
   ui.viewport.style.setProperty('--look-y', `${(-dy * 16).toFixed(1)}px`);
   ui.viewport.style.setProperty('--look-x-fg', `${(-dx * 52).toFixed(1)}px`);
   ui.viewport.style.setProperty('--look-y-fg', `${(-dy * 32).toFixed(1)}px`);
+  if (use3d) SCENE3D.lookTo(lx, ly);
 });
 
 // ---------- entes sobre el grafo ----------
@@ -428,6 +443,8 @@ function updateEntities(dt) {
   }
   // corazón acelerado cuando algo está a 1-2 saltos
   SND.updateHeart(minHops <= 2 ? 1.2 * minHops : 99, game.time);
+  // entes 3D: visibles solo cuando están en tu nodo (fundido en tick)
+  if (use3d) SCENE3D.syncEntities(game.entities, game.node);
 
   // amenaza en tu nodo
   const here = game.entities.find(e => e.node === game.node);
@@ -476,6 +493,10 @@ function loop(now) {
   game.lampFlick = 0.82 + 0.18 * Math.max(0,
     Math.sin(t * 13) * Math.sin(t * 7.3 + 1.7) + Math.sin(t * 2.9) * 0.7) / 1.7;
   ui.light.style.opacity = game.lampFlick;
+  if (use3d) SCENE3D.tick(dt, {
+    flick: game.lampFlick,
+    torch: game.meter ? game.meter.v / game.meter.max : 1,
+  });
 
   // tecla mantenida = caminar (WASD continuo, ritmo de la transición)
   if (game.stepCd > 0) game.stepCd -= dt;

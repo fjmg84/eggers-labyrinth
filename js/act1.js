@@ -116,7 +116,7 @@
         }],
       },
       cabaña_ext: {
-        name: 'Ante la Cabaña', map: [3, 2], image: 'act1/cabana-ext.jpg',
+        name: 'Ante la Cabaña', map: [3, 2], pos: [3, 1.7], image: 'act1/cabana-ext.jpg',
         scene: 'a1-cabana-ext',
         exits: { s: 'claro', w: 'huerto', e: 'cabaña_in' },
         hotspots: [{
@@ -125,7 +125,7 @@
         }],
       },
       cabaña_in: {
-        name: 'El Interior de la Cabaña', map: [4, 2], image: 'act1/cabana-in.jpg',
+        name: 'El Interior de la Cabaña', map: [4, 2], pos: [3, 2], image: 'act1/cabana-in.jpg',
         scene: 'a1-cabana-in',
         exits: { w: 'cabaña_ext' },
         hotspots: [{

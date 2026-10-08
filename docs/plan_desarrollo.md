@@ -48,6 +48,17 @@ Flujo: una rama por fase → tú commiteas, pusheas y mergeas a `main` → sigui
 - [x] Fotos HD reales por nodo (Wikimedia Commons; créditos en `assets/img/CREDITS.md`), brújula N/S/E/O clicable, minimapa de nodos visitados y nombre de escena al llegar
 - [ ] **CHECKPOINT: tú mergeas a `main`**
 
+## Fase 2b — Motor 3D del mundo (rama `motor-3d`)
+
+- [x] Three.js r128 vendido localmente (`js/lib/three.min.js`, MIT) — sin CDN ni build step
+- [x] Mundo 3D continuo por acto (`js/scene3d.js`): bosque instanciado (pinos/muertos) con senderos tallados según el grafo, luna, niebla y luz volumétrica
+- [x] Hitos por nodo: cabaña (exterior/interior), pantano, monolito, hoguera, cercas, huerto, muralla y puerta de salida
+- [x] Entes 3D (Black Phillip, La Bruja) con ojos que atraviesan la niebla; fundido al entrar en tu nodo
+- [x] Navegación por nodos intacta: la cámara desliza por los senderos y aterriza mirando el hito; antorcha alimenta la luz 3D
+- [x] Fallback 2D (escenas CSS/fotos) conservado si WebGL no está disponible
+- [x] `tools/check_scene3d.js`: prueba de humo headless (mundo, cámara, deslizamiento, entes)
+- [ ] **CHECKPOINT: tú mergeas a `main`**
+
 ## Fase 3 — Acto II: *El Faro* (rama `acto-ii` desde main)
 
 - [ ] ~12-14 nodos: isla rocosa, cimientos, pasillos de piedra, sala inundada

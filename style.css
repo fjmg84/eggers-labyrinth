@@ -705,6 +705,19 @@ body {
   background-color: #060705;
 }
 
+/* --- mundo 3D (Three.js): el canvas sustituye al fondo plano --- */
+#view3d {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: none;
+}
+#viewport.mode-3d #view3d { display: block; }
+#viewport.mode-3d #scene-layer { display: none; }   /* el mundo real pinta el fondo */
+#viewport.mode-3d #passers { display: none; }        /* los árboles reales pasan de largo */
+#viewport.mode-3d .creature { display: none; }       /* los entes son mallas 3D */
+
 /* --- nombre de la escena al llegar --- */
 #nodeTag {
   position: absolute;

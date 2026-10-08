@@ -11,8 +11,9 @@
 </head>
 <body>
 <div id="stage">
-  <!-- viewport por capas: fondo → profundidad → entes → niebla → luz → lente -->
+  <!-- viewport por capas: mundo 3D → fondo 2D (fallback) → salidas → entes → niebla → luz → lente -->
   <div id="viewport">
+    <canvas id="view3d"></canvas>
     <div id="scene-layer"></div>
     <div id="exits"></div>
     <div id="entity-layer"></div>
@@ -107,9 +108,11 @@
     </div>
   </div>
 </div>
+<script src="js/lib/three.min.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/nodes.js"></script>
 <script src="js/act1.js"></script>
+<script src="js/scene3d.js"></script>
 <script src="js/engine.js"></script>
 </body>
 </html>
