@@ -72,6 +72,7 @@ function renderInventory() {
   ui.inventory.textContent = game.inventory.length
     ? '◈ ' + game.inventory.join('  ◈ ')
     : '';
+  renderMinimap(); // el rombo del mapa desaparece al recoger el ítem
 }
 
 // ---------- flujo del juego ----------
@@ -101,6 +102,7 @@ function beginAct(index) {
   game.meter = act.meter ? { ...act.meter, v: act.meter.max } : null;
   game.entities = (act.entities || []).map(e => ({ ...e, node: e.from, fade: 0 }));
   game.visited = new Set();
+  game.hintShown = false;
   ui.minimap.classList.toggle('hidden', !Object.values(act.nodes).some(n => n.map));
   if (use3d) {
     SCENE3D.init();
@@ -187,6 +189,11 @@ function enterNode(id, instant) {
   updateCompass(node);
   renderMinimap();
   showNodeName(node);
+  // pista única de interacción, la primera vez que hay algo tocable en pantalla
+  if (!game.hintShown && (node.hotspots || []).length) {
+    game.hintShown = true;
+    setTimeout(() => showMsg('Los destellos marcan lo interactivo: acércales el ratón y pulsa E (o haz clic).', 6.5), 6000);
+  }
   if (instant) {
     ui.viewport.style.transition = 'none';
     requestAnimationFrame(() => { ui.viewport.style.transition = ''; });
@@ -214,7 +221,8 @@ function updateCompass(node) {
   }
 }
 
-// Minimapa: solo los nodos ya visitados y sus aristas; el actual pulsa.
+// Minimapa: nodos visitados + aristas entre ellos. SIEMPRE visibles los
+// objetivos: rombo rojo = nodo con ítem pendiente, anillo dorado = la meta.
 function renderMinimap() {
   if (ui.minimap.classList.contains('hidden')) return;
   const nodes = game.act.nodes;
@@ -222,6 +230,8 @@ function renderMinimap() {
     const [x, y] = nodes[id].map;
     return [x * 20 + 10, (4 - y) * 20 + 10];
   };
+  const pendingItem = id => (nodes[id].hotspots || []).some(h =>
+    h.action && h.action.type === 'item' && !game.inventory.includes(h.action.item));
   let s = '';
   const drawn = new Set();
   for (const id of game.visited) {
@@ -235,11 +245,18 @@ function renderMinimap() {
       s += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
     }
   }
-  for (const id of game.visited) {
+  for (const id of Object.keys(nodes)) {
     if (!nodes[id].map) continue;
+    const visited = game.visited.has(id);
+    const isGoal = id === game.act.goal;
+    if (!visited && !isGoal && !pendingItem(id)) continue;
     const [x, y] = pos(id);
-    const cls = id === game.node ? 'cur' : id === game.act.goal ? 'goal' : '';
-    s += `<circle cx="${x}" cy="${y}" r="${id === game.node ? 4 : 2.6}" class="${cls}"/>`;
+    if (isGoal) s += `<circle cx="${x}" cy="${y}" r="6.5" class="obj-goal"/>`;
+    if (pendingItem(id)) s += `<path class="obj-item" d="M${x} ${y - 5}L${x + 5} ${y}L${x} ${y + 5}L${x - 5} ${y}Z"/>`;
+    if (visited) {
+      const cls = id === game.node ? 'cur' : isGoal ? 'goal' : '';
+      s += `<circle cx="${x}" cy="${y}" r="${id === game.node ? 4 : 2.6}" class="${cls}"/>`;
+    }
   }
   ui.minimap.innerHTML = s;
 }

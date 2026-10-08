@@ -225,15 +225,28 @@ body {
   border-radius: 3px;
   transition: border-color 0.25s, background 0.25s, box-shadow 0.25s;
 }
-/* destello tenue siempre visible: el jugador ve qué es interactivo */
+/* destello tenue siempre visible + anillo expansivo: el jugador ve qué es interactivo */
+.hotspot::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(255, 220, 160, 0.38);
+  border-radius: 3px;
+  pointer-events: none;
+  animation: hsPing 2.8s ease-out infinite;
+}
+@keyframes hsPing {
+  0% { transform: scale(1); opacity: 0.8; }
+  75%, 100% { transform: scale(1.55); opacity: 0; }
+}
 .hotspot::after {
   content: '';
   position: absolute;
   left: 50%; top: 50%;
-  width: 9px; height: 9px;
-  margin: -5px 0 0 -5px;
+  width: 13px; height: 13px;
+  margin: -7px 0 0 -7px;
   background: radial-gradient(circle, rgba(255, 236, 200, 0.95), rgba(255, 220, 160, 0.25) 55%, transparent 75%);
-  box-shadow: 0 0 14px rgba(255, 220, 160, 0.65);
+  box-shadow: 0 0 18px rgba(255, 220, 160, 0.7);
   pointer-events: none;
   animation: hsGlint 2.4s ease-in-out infinite;
 }
@@ -770,6 +783,9 @@ body {
 }
 @media (prefers-reduced-motion: reduce) {
   #compass span.open { animation: none; opacity: 0.9; }
+  #minimap .obj-item { animation: none; opacity: 0.95; }
+  .hotspot::before { animation: none; opacity: 0.35; }
+  .hotspot::after { animation: none; }
 }
 
 /* --- minimapa de nodos visitados (sobre la brújula) --- */
@@ -786,6 +802,22 @@ body {
 #minimap circle { fill: rgba(216, 205, 184, 0.5); }
 #minimap circle.goal { fill: rgba(232, 182, 76, 0.85); }
 #minimap circle.cur { fill: #ffdca0; animation: mmPulse 1.6s ease-in-out infinite; }
+/* objetivos siempre visibles: ítem pendiente = rombo rojo; meta = anillo dorado */
+#minimap .obj-item {
+  fill: rgba(214, 64, 45, 0.95);
+  stroke: rgba(255, 130, 100, 0.5);
+  stroke-width: 0.8;
+  animation: objPulse 1.4s ease-in-out infinite;
+}
+#minimap .obj-goal {
+  fill: none;
+  stroke: rgba(232, 182, 76, 0.9);
+  stroke-width: 1.6;
+}
+@keyframes objPulse {
+  0%, 100% { opacity: 0.65; }
+  50%      { opacity: 1; }
+}
 @keyframes mmPulse {
   0%, 100% { r: 3.4; opacity: 0.85; }
   50%      { r: 5; opacity: 1; }

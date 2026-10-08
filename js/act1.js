@@ -27,13 +27,13 @@
       spot: 'Unos cuernos negros se apartan entre las ramas.',
       catch: 'Quítate las vestiduras... firma tu nombre en mi libro y camina libremente en la oscuridad.',
     }],
-    // la bruja aparece si acumulas ~18 s en zonas oscuras
+    // la bruja aparece si acumulas ~30 s en zonas oscuras; caza despacio
     onTick(g, dt) {
-      if (g.darknessT > 18 && !g.entities.some(e => e.id === 'witch')) {
+      if (g.darknessT > 30 && !g.entities.some(e => e.id === 'witch')) {
         const nb = Object.values(g.act.nodes[g.node].exits || {}).filter(Boolean);
         g.entities.push({
           id: 'witch', css: 'witch', node: nb[0] || g.node, fade: 0,
-          cadence: 2.2, grace: 1.1,
+          cadence: 4.2, grace: 2.4,
           spot: 'El aire se enfría. Algo ha olido tu sangre.',
           catch: 'La Bruja del Bosque te arrastra entre la maleza sin un grito.',
         });
