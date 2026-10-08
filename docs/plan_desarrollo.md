@@ -59,6 +59,17 @@ Flujo: una rama por fase → tú commiteas, pusheas y mergeas a `main` → sigui
 - [x] `tools/check_scene3d.js`: prueba de humo headless (mundo, cámara, deslizamiento, entes)
 - [ ] **CHECKPOINT: tú mergeas a `main`**
 
+## Fase 2c — Movimiento libre en primera persona (rama `main`)
+
+- [x] WASD continuo + correr (MAYÚS) con colisiones por rejilla de sólidos (árboles, muros, monolito, mesa, cercas)
+- [x] Mirada libre con pointer lock (clic); parallax de ratón como respaldo sin captura
+- [x] Hotspots anclados al mundo 3D (`at`): el destello se proyecta sobre su objeto real y solo responde de cerca (E usa el más próximo)
+- [x] Entes: acechan por el grafo y cazan físicamente dentro de tu claro (adiós al temporizador de gracia; escape real corriendo)
+- [x] Minimapa continuo: tu punto se mueve en tiempo real; rombos de objetivos y anillo de meta intactos
+- [x] Sistema de nodos debajo de todo: define escenas, zonas oscuras, objetivos y a dónde van los entes
+- [x] `tools/check_scene3d.js` ampliado: caminar, girar, colisiones (muro sí, puerta no), caza del ente
+- [ ] **CHECKPOINT: tú mergeas a `main`**
+
 ## Fase 3 — Acto II: *El Faro* (rama `acto-ii` desde main)
 
 - [ ] ~12-14 nodos: isla rocosa, cimientos, pasillos de piedra, sala inundada

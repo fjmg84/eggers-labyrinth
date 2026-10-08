@@ -802,6 +802,12 @@ body {
 #minimap circle { fill: rgba(216, 205, 184, 0.5); }
 #minimap circle.goal { fill: rgba(232, 182, 76, 0.85); }
 #minimap circle.cur { fill: #ffdca0; animation: mmPulse 1.6s ease-in-out infinite; }
+#minimap .me {
+  fill: #f2e6c8;
+  stroke: rgba(0, 0, 0, 0.55);
+  stroke-width: 0.8;
+  animation: mmPulse 1.6s ease-in-out infinite;
+}
 /* objetivos siempre visibles: ítem pendiente = rombo rojo; meta = anillo dorado */
 #minimap .obj-item {
   fill: rgba(214, 64, 45, 0.95);

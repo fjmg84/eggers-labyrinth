@@ -1,14 +1,22 @@
-// scene3d.js — mundo 3D procedural por acto para THE FOLKTALES OF EGGERS (Three.js).
-// Genera un bosque continuo con pasillos tallados según el grafo del acto (los
-// claros y senderos coinciden con las salidas reales), hitos por nodo (cabaña,
-// pantano, monolito, hoguera, cercas, muralla, puerta) y entes como mallas 3D.
+// scene3d.js — mundo 3D procedural con MOVIMIENTO LIBRE en primera persona.
+// Bosque continuo con senderos tallados según el grafo del acto, hitos por nodo
+// y entes que acechan por el grafo y cazan físicamente en tu claro.
 // Todo son primitivas + niebla + luz: cero modelos externos.
-// Si THREE no está disponible, el motor 2D (CSS/fotos) sigue como fallback.
+// El jugador camina/corre con colisiones (rejilla de sólidos); la mirada es
+// pointer-lock (addLook) o parallax de ratón (lookTo) si no hay captura.
+// El sistema de nodos sigue debajo: define objetivos, zonas oscuras y a dónde
+// van los entes. Si THREE no carga, el motor 2D (CSS/fotos) es el fallback.
 'use strict';
 
 const SCENE3D = (function () {
-  const S = 28;      // metros entre nodos adyacentes del grid
-  const EYE = 1.7;   // altura de los ojos
+  const S = 28;            // metros entre nodos adyacentes del grid
+  const EYE = 1.7;         // altura de los ojos
+  const SPEED = 4.3;       // m/s caminando
+  const RUN = 6.6;         // m/s corriendo (MAYÚS)
+  const P_RAD = 0.42;      // radio de colisión del jugador
+  const CELL = 2;          // celda de la rejilla de colisión
+  const CATCH_DIST = 1.7;  // distancia a la que un ente te alcanza
+  const BOUND = [-92, 204];// límites del mundo caminable
 
   let THREE = (typeof window !== 'undefined' && window.THREE) || null;
   const use3 = () => THREE || (THREE = (typeof window !== 'undefined' && window.THREE) || null);
@@ -17,28 +25,61 @@ const SCENE3D = (function () {
   let act = null, tClk = 0;
   const nodesPos = new Map();
 
-  // vista: yaw base + offsets de mirada del ratón; la cámara "aterriza" mirando
-  // hacia el centro del nodo al llegar (los hitos quedan siempre de frente).
-  const view = { yaw: Math.PI, yawOff: 0, pitchOff: 0 };
-  const glide = { t: 1, dur: 0.62, from: null, to: null, toId: null, yawFrom: 0, yawTo: 0 };
+  // jugador (movimiento libre)
+  const player = { pos: null, yaw: Math.PI, pitch: 0, bob: 0, stride: 0, moving: false };
+  const look = { yawOff: 0, pitchOff: 0 };   // parallax de ratón sin captura
+  let nearest = null;                        // nodo actual = el más cercano
+
+  // eventos que expone el motor (beginAct los re-engancha cada acto)
+  let ev = { onNode: null, onFootstep: null, onCaught: null };
+
+  // rejilla de colisión: "cx,cz" → [{x, z, r}]
+  const solids = new Map();
 
   // luces vivas del acto
   let torch = null, fire = null, fireCone = null, candle = null, portalLight = null;
-  const ents = new Map(); // id → {grp, mats, fade, target, pos}
+  const ents = new Map(); // id → {grp, mats, fade, target, speed, catch, placedFor}
 
   const rnd = (a, b) => a + Math.random() * (b - a);
-  const yawOf = d => Math.atan2(-d.x, -d.z);   // d=Vector3 horizontal → yaw YXZ
-  function lerpAngle(a, b, k) {
-    let d = ((b - a + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
-    return a + d * k;
+
+  // ---------- colisiones ----------
+  function addSolid(x, z, r) {
+    const key = `${Math.floor((x + 200) / CELL)},${Math.floor((z + 200) / CELL)}`;
+    if (!solids.has(key)) solids.set(key, []);
+    solids.get(key).push({ x, z, r });
+  }
+  // empuja al jugador fuera de cada sólido cercano (2 pasadas para esquinas)
+  function collide(p) {
+    for (let it = 0; it < 2; it++) {
+      const cx = Math.floor((p.x + 200) / CELL), cz = Math.floor((p.z + 200) / CELL);
+      for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+        const list = solids.get(`${cx + i},${cz + j}`);
+        if (!list) continue;
+        for (const s of list) {
+          const dx = p.x - s.x, dz = p.z - s.z;
+          const d2 = dx * dx + dz * dz, min = s.r + P_RAD;
+          if (d2 < min * min) {
+            if (d2 > 1e-6) {
+              const d = Math.sqrt(d2), push = (min - d) / d;
+              p.x += dx * push; p.z += dz * push;
+            } else p.x += min; // justo encima: empujón lateral
+          }
+        }
+      }
+    }
+  }
+  // muro como hilera de sólidos (deja pasar la puerta si el segmento la respeta)
+  function solidWall(x1, z1, x2, z2, r) {
+    const n = Math.max(1, Math.ceil(Math.hypot(x2 - x1, z2 - z1) / 0.6));
+    for (let i = 0; i <= n; i++)
+      addSolid(x1 + (x2 - x1) * i / n, z1 + (z2 - z1) * i / n, r);
   }
 
+  // ---------- construcción del mundo ----------
   function worldPos(id) {
     const p = act.nodes[id].pos || act.nodes[id].map;
     return new THREE.Vector3(p[0] * S, EYE, p[1] * S);
   }
-
-  // ---------- utilidades de construcción ----------
   function lam(color, opt) {
     return new THREE.MeshLambertMaterial(Object.assign({ color }, opt || {}));
   }
@@ -77,9 +118,7 @@ const SCENE3D = (function () {
       for (const [cx, cz, r] of clearance) if ((x - cx) ** 2 + (z - cz) ** 2 < r * r) return false;
       for (const [a, b] of edges) if (distSeg(x, z, a.x, a.z, b.x, b.z) < 3.4) return false;
       for (const [cx, cz, r] of keepOut) if ((x - cx) ** 2 + (z - cz) ** 2 < r * r) return false;
-      // cerca: pasillo lineal propio
-      if (distSeg(x, z, -3.5, 46, -3.5, 66) < 2) return false;
-      // corredor muralla→puerta para la banda densa
+      if (distSeg(x, z, -3.5, 46, -3.5, 66) < 2) return false; // pasillo de la cerca
       return true;
     };
 
@@ -103,10 +142,11 @@ const SCENE3D = (function () {
         const s = rnd(0.75, 1.5);
         q.setFromEuler(new THREE.Euler(0, rnd(0, 6.28), 0));
         sc.set(s, s, s);
-        v.set(x, 2.6 * s + 3.8 * s, z);        // copa sobre el tronco
+        v.set(x, 2.6 * s + 3.8 * s, z);
         m.compose(v, q, sc); pines.setMatrixAt(np, m);
         col.setHSL(0.29 + rnd(-0.03, 0.03), 0.32, rnd(0.05, 0.11)); pines.setColorAt(np, col);
         v.set(x, 1.3 * s, z); m.compose(v, q, sc); trunks.setMatrixAt(np, m);
+        addSolid(x, z, 0.5 * s);
         np++;
       } else if (nd < MAXD) {
         const s = rnd(0.6, 1.2);
@@ -114,6 +154,7 @@ const SCENE3D = (function () {
         sc.set(s, s, s);
         v.set(x, 2.5 * s, z);
         m.compose(v, q, sc); deads.setMatrixAt(nd, m);
+        addSolid(x, z, 0.38 * s);
         nd++;
       }
     }
@@ -135,6 +176,7 @@ const SCENE3D = (function () {
       v.set(x, 2.6 * s + 3.8 * s, z);
       m.compose(v, q, sc); band.setMatrixAt(nb, m);
       col.setHSL(0.3, 0.3, rnd(0.04, 0.09)); band.setColorAt(nb, col);
+      addSolid(x, z, 0.5 * s);
       nb++;
     }
     band.count = nb;
@@ -154,9 +196,9 @@ const SCENE3D = (function () {
     box(8, 3.2, 0.3, 0, 1.6, 3.5);                    // pared norte
     box(0.3, 3.2, 7, 4, 1.6, 0);                      // este
     box(0.3, 3.2, 7, -4, 1.6, 0);                     // oeste
-    box(3.4, 3.2, 0.3, -2.3, 1.6, -3.5);              // sur: segmento con ventana
-    box(3.4, 3.2, 0.3, 2.3, 1.6, -3.5);               // sur: segmento de la puerta
-    box(1.2, 0.8, 0.3, 0.0, 2.8, -3.5);               // dintel del hueco
+    box(2.8, 3.2, 0.3, -2.6, 1.6, -3.5);              // sur: segmento con ventana
+    box(2.8, 3.2, 0.3, 2.6, 1.6, -3.5);               // sur: segmento de la puerta
+    box(2.4, 0.8, 0.3, 0, 2.8, -3.5);                 // dintel sobre el hueco (±1.2 m)
     box(8, 0.2, 7, 0, 0.1, 0, woodD);                // suelo interior
     // techo a dos aguas (cumbrera a lo largo del eje X)
     const roofL = new THREE.Mesh(new THREE.BoxGeometry(8.8, 0.25, 4.4), woodD);
@@ -175,6 +217,14 @@ const SCENE3D = (function () {
     candleBody.position.set(0.3, 1.2, 2.2); g.add(candleBody);
     candle = new THREE.PointLight(0xffd9a0, 0.6, 7, 2);
     candle.position.set(0.3, 1.55, 2.2); g.add(candle);
+
+    // colisiones: paredes con hueco de puerta al centro sur, y la mesa
+    solidWall(c.x - 4, c.z + 3.5, c.x + 4, c.z + 3.5, 0.35);
+    solidWall(c.x + 4, c.z - 3.5, c.x + 4, c.z + 3.5, 0.35);
+    solidWall(c.x - 4, c.z - 3.5, c.x - 4, c.z + 3.5, 0.35);
+    solidWall(c.x - 4, c.z - 3.5, c.x - 1.2, c.z - 3.5, 0.35);
+    solidWall(c.x + 1.2, c.z - 3.5, c.x + 4, c.z - 3.5, 0.35);
+    addSolid(c.x, c.z + 2.3, 1.15);
   }
 
   function buildSwamp() {
@@ -191,6 +241,7 @@ const SCENE3D = (function () {
       snag.position.set(c.x + Math.cos(a) * r, h / 2, c.z + Math.sin(a) * r);
       snag.rotation.set(rnd(-0.1, 0.1), rnd(0, 6.28), rnd(-0.1, 0.1));
       actRoot.add(snag);
+      addSolid(snag.position.x, snag.position.z, 0.4);
     }
   }
 
@@ -205,6 +256,7 @@ const SCENE3D = (function () {
       s.position.set(c.x + rnd(-1.8, 1.8), 0.2, c.z + rnd(-1.6, 1.6));
       actRoot.add(s);
     }
+    addSolid(c.x, c.z, 1.5);
   }
 
   function buildCampfire() {
@@ -224,6 +276,7 @@ const SCENE3D = (function () {
     inner.position.set(c.x, 0.55, c.z); actRoot.add(inner);
     fire = new THREE.PointLight(0xff8a3a, 1.25, 26, 2);
     fire.position.set(c.x, 2.2, c.z); actRoot.add(fire);
+    addSolid(c.x, c.z, 1.2);
   }
 
   function buildFence() {
@@ -234,6 +287,7 @@ const SCENE3D = (function () {
       p.position.set(c.x - 3.5, 0.52, 46.5 + i * 1.8);
       p.rotation.z = rnd(-0.04, 0.04);
       actRoot.add(p);
+      addSolid(p.position.x, p.position.z, 0.3);
     }
     const rail = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.1, 21.6), lam(0x241b10));
     rail.position.set(c.x - 3.5, 0.85, 56.4); actRoot.add(rail);
@@ -249,8 +303,11 @@ const SCENE3D = (function () {
       const h = rnd(1.5, 2.3);
       q.setFromEuler(new THREE.Euler(rnd(-0.05, 0.05), rnd(0, 6.28), rnd(-0.05, 0.05)));
       sc.set(1, h, 1);
-      v.set(c.x - 6.4 + col * 3.2 + rnd(-0.4, 0.4), h / 2, c.z - 6.4 + r * 3.2 + rnd(-0.4, 0.4));
+      const x = c.x - 6.4 + col * 3.2 + rnd(-0.4, 0.4);
+      const z = c.z - 6.4 + r * 3.2 + rnd(-0.4, 0.4);
+      v.set(x, h / 2, z);
       m.compose(v, q, sc); orch.setMatrixAt(n++, m);
+      addSolid(x, z, 0.3);
     }
     actRoot.add(orch);
   }
@@ -275,6 +332,8 @@ const SCENE3D = (function () {
     halo.position.set(0, 2.4, 0.05); halo.rotation.y = Math.PI; g.add(halo);
     portalLight = new THREE.PointLight(0xffe6b0, 0.9, 20, 2);
     portalLight.position.set(0, 2, -0.8); g.add(portalLight);
+    addSolid(c.x - 1.25, c.z, 0.55);
+    addSolid(c.x + 1.25, c.z, 0.55);
   }
 
   // ---------- entes (mallas 3D; ojos que atraviesan la niebla) ----------
@@ -306,7 +365,7 @@ const SCENE3D = (function () {
     }
     grp.visible = false;
     actRoot.add(grp);
-    return { grp, mats, fade: 0, target: 0 };
+    return { grp, mats, fade: 0, target: 0, speed: 0, catch: null, placedFor: null };
   }
 
   function syncEntities(list, curNode) {
@@ -314,65 +373,115 @@ const SCENE3D = (function () {
     for (const e of list) {
       let rec = ents.get(e.id);
       if (!rec) { rec = makeEnt(e.css || 'goat'); ents.set(e.id, rec); }
+      rec.speed = e.css === 'witch' ? 2.75 : 2.95;
+      rec.catch = e.catch;
       rec.target = e.node === curNode ? 1 : 0;
-      if (rec.target) {
+      if (rec.target && rec.placedFor !== e.node) {   // aparece en un punto del claro
         const c = nodesPos.get(e.node);
-        if (!rec.placedFor || rec.placedFor !== e.node) {  // aparece en un punto del claro
-          const a = (e.id.charCodeAt(0) * 2.4) % Math.PI * 2;
-          rec.grp.position.set(c.x + Math.cos(a) * 8, 0, c.z + Math.sin(a) * 8);
-          rec.placedFor = e.node;
-        }
+        const a = (e.id.charCodeAt(0) * 2.4) % (Math.PI * 2);
+        rec.grp.position.set(c.x + Math.cos(a) * 8, 0, c.z + Math.sin(a) * 8);
+        rec.placedFor = e.node;
       }
     }
   }
 
-  // ---------- cámara / navegación ----------
+  // ---------- jugador: posición, cámara, mirada ----------
   function snapTo(id) {
-    camera.position.copy(nodesPos.get(id));
-    view.yaw = Math.PI; // al despertar, miras al norte
-    glide.t = 1;
+    const p = nodesPos.get(id);
+    player.pos = new THREE.Vector3(p.x, 0, p.z);
+    player.yaw = Math.PI;                            // al despertar, miras al norte
+    player.pitch = 0; player.bob = 0; player.stride = 0;
+    look.yawOff = 0; look.pitchOff = 0;
+    nearest = id;                                    // silencioso: sin evento
   }
 
   function enterNode(id, instant) {
-    if (instant) snapTo(id);
-    else if (glide.toId !== id) snapTo(id); // movimiento externo al flujo normal
+    if (instant) snapTo(id);                          // el jugador ya está ahí
   }
 
-  function glideTo(id, fromId) {
-    if (!THREE || !camera || !nodesPos.has(id)) return;
-    const to = nodesPos.get(id);
-    const from = camera.position.clone();
-    const d = new THREE.Vector3().subVectors(to, from); d.y = 0;
-    if (d.length() < 0.3) return;
-    const dir = d.clone().normalize();
-    const pull = act.nodes[id].pos ? 0 : 5;   // nodos con pos propia ya están bien situados
-    const end = to.clone();
-    if (pull && d.length() > 9) end.addScaledVector(dir, -pull);
-    glide.from = from; glide.to = end; glide.toId = id;
-    glide.t = 0; glide.dur = 0.62;
-    glide.yawFrom = view.yaw;
-    glide.yawTo = yawOf(new THREE.Vector3().subVectors(to, end).setY(0).normalize());
+  // mirada libre (pointer lock): gira yaw/pitch; anula el parallax
+  function addLook(dx, dy) {
+    look.yawOff = 0; look.pitchOff = 0;
+    player.yaw -= dx * 0.0023;
+    player.pitch = Math.max(-1.15, Math.min(1.15, player.pitch - dy * 0.0021));
   }
-
+  // parallax de ratón sin captura (respaldo)
   function lookTo(nx, ny) {
-    view.yawOff = (nx - 0.5) * 1.05;
-    view.pitchOff = (ny - 0.5) * 0.55;
+    look.yawOff = (nx - 0.5) * 1.05;
+    look.pitchOff = (ny - 0.5) * 0.55;
   }
 
   function tick(dt, st) {
-    if (!actRoot || !camera) return;
+    if (!actRoot || !camera || !player.pos) return;
     tClk += dt;
-    // deslizamiento entre nodos: posición suavizada + yaw hacia el centro del nodo
-    if (glide.t < 1) {
-      glide.t = Math.min(1, glide.t + dt / glide.dur);
-      const k = glide.t * glide.t * (3 - 2 * glide.t);
-      camera.position.lerpVectors(glide.from, glide.to, k);
-      camera.position.y = EYE + Math.sin(glide.t * Math.PI * 3) * 0.06;  // paso
-      view.yaw = lerpAngle(glide.yawFrom, glide.yawTo, k);
-    } else {
-      camera.position.y = EYE + Math.sin(tClk * 1.4) * 0.02;             // respiración
+
+    // movimiento libre: WASD relativo a la mirada, con colisiones y atajos
+    const mv = st.move || {};
+    const f = mv.f || 0, s = mv.s || 0;
+    player.moving = !!(f || s);
+    if (player.moving) {
+      const sp = (mv.run ? RUN : SPEED) * dt;
+      const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
+      const rx = -fz, rz = fx;
+      player.pos.x += (fx * f + rx * s) * sp;
+      player.pos.z += (fz * f + rz * s) * sp;
+      player.pos.x = Math.max(BOUND[0], Math.min(BOUND[1], player.pos.x));
+      player.pos.z = Math.max(BOUND[0], Math.min(BOUND[1], player.pos.z));
+      collide(player.pos);
+      player.bob += (mv.run ? 13 : 9) * dt;
+      player.stride += sp;
+      const STRIDE = mv.run ? 3.0 : 2.2;             // un pie tras otro
+      if (player.stride >= STRIDE) {
+        player.stride = 0;
+        if (ev.onFootstep) ev.onFootstep();
+      }
     }
-    camera.rotation.set(view.pitchOff, view.yaw + view.yawOff, 0);
+
+    // nodo actual = el más cercano (con histéresis de 3 m contra el parpadeo)
+    let best = null, bd = Infinity;
+    for (const [id, p] of nodesPos) {
+      const d = (p.x - player.pos.x) ** 2 + (p.z - player.pos.z) ** 2;
+      if (d < bd) { bd = d; best = id; }
+    }
+    if (best !== nearest) {
+      const cur = nodesPos.get(nearest);
+      const dCur = Math.hypot(cur.x - player.pos.x, cur.z - player.pos.z);
+      if (Math.sqrt(bd) < dCur - 3) {
+        nearest = best;
+        if (ev.onNode) ev.onNode(best);
+      }
+    }
+
+    // cámara del jugador
+    const yawT = player.yaw + look.yawOff, pitchT = player.pitch + look.pitchOff;
+    camera.position.set(player.pos.x,
+      EYE + (player.moving ? Math.sin(player.bob) * 0.05 : Math.sin(tClk * 1.4) * 0.02),
+      player.pos.z);
+    camera.rotation.set(pitchT, yawT, 0);
+
+    // entes: fundido y, en tu nodo, acoso físico hasta alcanzarte
+    for (const [, rec] of ents) {
+      rec.fade += (rec.target - rec.fade) * Math.min(1, dt * 2.2);
+      const on = rec.fade > 0.02;
+      rec.grp.visible = on;
+      if (!on) continue;
+      if (rec.target && rec.speed) {
+        const px = player.pos.x - rec.grp.position.x;
+        const pz = player.pos.z - rec.grp.position.z;
+        const d = Math.hypot(px, pz);
+        if (d > 1.65) {
+          rec.grp.position.x += px / d * rec.speed * dt;
+          rec.grp.position.z += pz / d * rec.speed * dt;
+        }
+        if (d <= CATCH_DIST && ev.onCaught) {
+          const fire = ev.onCaught; ev.onCaught = null; // una sola vez por acto
+          fire(rec.catch);
+        }
+      }
+      rec.grp.lookAt(player.pos.x, 0, player.pos.z);
+      for (const m of rec.mats) m.opacity = rec.fade;
+    }
+
     // luces vivas
     if (torch) {
       torch.position.copy(camera.position);
@@ -384,17 +493,19 @@ const SCENE3D = (function () {
     }
     if (candle) candle.intensity = 0.5 + 0.14 * Math.sin(tClk * 11.3) * Math.sin(tClk * 5.1);
     if (portalLight) portalLight.intensity = 0.85 + 0.15 * Math.sin(tClk * 1.9);
-    // entes: fundido y siempre de cara al jugador
-    for (const [, rec] of ents) {
-      rec.fade += (rec.target - rec.fade) * Math.min(1, dt * 2.2);
-      const on = rec.fade > 0.02;
-      rec.grp.visible = on;
-      if (on) {
-        rec.grp.lookAt(camera.position.x, 0, camera.position.z);
-        for (const m of rec.mats) m.opacity = rec.fade;
-      }
-    }
+
     if (renderer) renderer.render(scene, camera);
+  }
+
+  // proyecta un punto del mundo a coordenadas de pantalla (%); null si queda detrás
+  function project(p) {
+    if (!camera) return null;
+    const v = new THREE.Vector3(p[0], p[1], p[2]).project(camera);
+    if (v.z > 1) return null;
+    return { x: (v.x * 0.5 + 0.5) * 100, y: (-v.y * 0.5 + 0.5) * 100 };
+  }
+  function playerPos() {
+    return player.pos ? { x: player.pos.x, z: player.pos.z } : null;
   }
 
   // ---------- API pública ----------
@@ -413,15 +524,21 @@ const SCENE3D = (function () {
     window.addEventListener('resize', size);
   }
 
+  function bind(events) { ev = events; }
+
   function buildAct(a) {
     if (!use3()) return null;
     act = a;
     if (!scene) scene = new THREE.Scene();
-    if (!camera) camera = new THREE.PerspectiveCamera(55, 5 / 3, 0.1, 500);
+    if (!camera) {
+      camera = new THREE.PerspectiveCamera(55, 5 / 3, 0.1, 500);
+      camera.rotation.order = 'YXZ';
+    }
     if (actRoot) { scene.remove(actRoot); disposeDeep(actRoot); }
     actRoot = new THREE.Group(); scene.add(actRoot);
     nodesPos.clear();
     ents.clear();
+    solids.clear();
     torch = fire = fireCone = candle = portalLight = null;
     for (const id of Object.keys(act.nodes)) nodesPos.set(id, worldPos(id));
 
@@ -458,15 +575,17 @@ const SCENE3D = (function () {
 
   function debug() {
     if (!camera) return null;
-    const fwd = { x: -Math.sin(view.yaw + view.yawOff), z: -Math.cos(view.yaw + view.yawOff) };
+    const yawT = player.yaw + look.yawOff;
     return {
-      pos: camera.position.toArray(), yaw: view.yaw, fwd,
-      gliding: glide.t < 1, ents: ents.size,
+      pos: camera.position.toArray(),
+      yaw: yawT,
+      fwd: { x: -Math.sin(yawT), z: -Math.cos(yawT) },
+      nearest, moving: player.moving, ents: ents.size,
     };
   }
 
-  return { init, buildAct, enterNode, glideTo, lookTo, tick, syncEntities, debug,
-           available: () => !!use3() };
+  return { init, buildAct, bind, enterNode, addLook, lookTo, tick, syncEntities,
+           project, playerPos, debug, available: () => !!use3() };
 })();
 
 if (typeof window !== 'undefined') window.SCENE3D = SCENE3D;

@@ -105,6 +105,11 @@ function beginAct(index) {
   game.hintShown = false;
   ui.minimap.classList.toggle('hidden', !Object.values(act.nodes).some(n => n.map));
   if (use3d) {
+    SCENE3D.bind({
+      onNode: id => { if (game.state === 'play') enterNode(id); },
+      onFootstep: () => SND.footstep(),
+      onCaught: reason => playerDeath(reason),
+    });
     SCENE3D.init();
     SCENE3D.buildAct(act);
     ui.viewport.classList.add('mode-3d');
@@ -124,7 +129,7 @@ function beginAct(index) {
   setTimeout(() => { ui.chapterTag.style.opacity = 0; }, 4200);
   ui.objective.textContent = act.objective || '';
   renderInventory();
-  showMsg(act.intro || 'WASD para moverte. El ratón mira.', 5);
+  showMsg(act.intro || 'WASD caminas libremente · CLIC captura la mirada · E interactúa.', 5);
   if (!game.t0) game.t0 = performance.now();
   SND.startWorld(game.entities.length);
   SND.bell(1);
@@ -135,6 +140,7 @@ function playerDeath(reason) {
   if (game.state !== 'play') return;
   game.state = 'dead';
   game.deaths++;
+  if (document.pointerLockElement) document.exitPointerLock(); // el cursor elige
   SND.shriek(true);
   SND.stopWorld();
   ui.flash.style.background = '#2b0505';
@@ -253,10 +259,13 @@ function renderMinimap() {
     const [x, y] = pos(id);
     if (isGoal) s += `<circle cx="${x}" cy="${y}" r="6.5" class="obj-goal"/>`;
     if (pendingItem(id)) s += `<path class="obj-item" d="M${x} ${y - 5}L${x + 5} ${y}L${x} ${y + 5}L${x - 5} ${y}Z"/>`;
-    if (visited) {
-      const cls = id === game.node ? 'cur' : isGoal ? 'goal' : '';
-      s += `<circle cx="${x}" cy="${y}" r="${id === game.node ? 4 : 2.6}" class="${cls}"/>`;
+    if (visited && !(use3d && id === game.node)) {
+      s += `<circle cx="${x}" cy="${y}" r="2.6" class="${isGoal ? 'goal' : ''}"/>`;
     }
+  }
+  if (use3d && SCENE3D.playerPos()) {
+    const pp = SCENE3D.playerPos();
+    s += `<circle id="mm-me" class="me" cx="${(pp.x / 28 * 20 + 10).toFixed(1)}" cy="${((4 - pp.z / 28) * 20 + 10).toFixed(1)}" r="3.2"/>`;
   }
   ui.minimap.innerHTML = s;
 }
@@ -274,6 +283,7 @@ function showNodeName(node) {
 function renderHotspots(node) {
   ui.entities.innerHTML = '';
   game.hotspotFocus = null;
+  game.hotspotList = [];
   for (const h of node.hotspots || []) {
     const el = document.createElement('div');
     el.className = 'hotspot';
@@ -283,6 +293,40 @@ function renderHotspots(node) {
     el.addEventListener('mouseleave', () => { if (game.hotspotFocus === h) { game.hotspotFocus = null; showPrompt(''); } });
     el.addEventListener('click', () => useHotspot(h));
     ui.entities.appendChild(el);
+    game.hotspotList.push({ h, el });
+  }
+}
+
+// HUD 3D por frame: destellos proyectados sobre su objeto real (solo de cerca,
+// el más próximo se anuncia para la tecla E) y tu punto en el minimapa.
+function updateHud3d() {
+  if (!game.hotspotList) return;
+  const pp = SCENE3D.playerPos();
+  let best = null, bd = 6.5;
+  for (const { h, el } of game.hotspotList) {
+    const at = h.at;
+    let show = false;
+    if (at) {
+      const d = Math.hypot(at[0] - pp.x, at[2] - pp.z);
+      if (d < bd) { bd = d; best = h; }
+      if (d < 6.5) {
+        const p = SCENE3D.project(at);
+        if (p) {
+          show = true;
+          el.style.left = `${(p.x - h.w / 2).toFixed(1)}%`;
+          el.style.top = `${(p.y - h.h / 2).toFixed(1)}%`;
+        }
+      }
+    }
+    el.style.display = show ? '' : 'none';
+  }
+  game.nearHs = best;
+  const label = best ? `E · ${best.label}` : '';
+  if (label !== ui.prompt.textContent) showPrompt(label);
+  const me = document.getElementById('mm-me');
+  if (me) {
+    me.setAttribute('cx', (pp.x / 28 * 20 + 10).toFixed(1));
+    me.setAttribute('cy', ((4 - pp.z / 28) * 20 + 10).toFixed(1));
   }
 }
 
@@ -327,6 +371,7 @@ const DIR_KEY = {
 };
 
 function tryMove(dir) {
+  if (use3d) { showMsg('Caminas con libertad: WASD para moverte, MAYÚS para correr.', 2.2); return; }
   if (game.state !== 'play' || game.moving || game.stepCd > 0) return;
   const node = game.act.nodes[game.node];
   const to = (node.exits || {})[dir];
@@ -345,7 +390,6 @@ function tryMove(dir) {
   ui.viewport.classList.add(`move-${dir}`);
   spawnPassers(dir);
   SND.footstep();
-  if (use3d) SCENE3D.glideTo(to, game.node); // la cámara desliza por el sendero real
   setTimeout(() => {
     enterNode(to);
     SND.footstep();
@@ -389,21 +433,22 @@ window.addEventListener('keydown', e => {
   if (game.state !== 'play') return;
   if (e.code === 'KeyE' || e.code === 'Space') {
     e.preventDefault();
+    if (use3d) { if (game.nearHs) useHotspot(game.nearHs); return; } // el más próximo
     if (game.hotspotFocus) useHotspot(game.hotspotFocus);
     return;
   }
   if (e.code === 'KeyM') { showMsg(SND.toggleMute() ? 'Silencio.' : 'El sonido regresa.', 1.6); return; }
   const dir = DIR_KEY[e.code];
-  if (dir) { e.preventDefault(); tryMove(dir); }
+  if (dir) { e.preventDefault(); if (!use3d) tryMove(dir); } // en 3D, WASD es continuo
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
 window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
 
-ui.pause.addEventListener('click', () => { if (game.state === 'pause') { game.state = 'play'; ui.pause.classList.add('hidden'); ui.hud.classList.remove('hidden'); } });
+ui.pause.addEventListener('click', () => { if (game.state === 'pause') { game.state = 'play'; ui.pause.classList.add('hidden'); ui.hud.classList.remove('hidden'); grabMouse(); } });
 ui.compass.addEventListener('click', e => {
   if (e.target.dataset.dir) tryMove(e.target.dataset.dir);
 });
-ui.card.addEventListener('click', () => { if (game.state === 'card') beginAct(game.actIndex); });
+ui.card.addEventListener('click', () => { if (game.state === 'card') { beginAct(game.actIndex); grabMouse(); } });
 $('startBtn').addEventListener('click', () => {
   SND.init();
   ui.title.classList.add('hidden');
@@ -414,6 +459,7 @@ $('retryBtn').addEventListener('click', () => {
   SND.init();
   ui.flash.style.opacity = 0;
   beginAct(game.actIndex);
+  grabMouse();
 });
 $('againBtn').addEventListener('click', () => {
   ui.victory.classList.add('hidden');
@@ -422,8 +468,28 @@ $('againBtn').addEventListener('click', () => {
   game.deaths = 0; game.t0 = 0;
 });
 
-// ---------- mirada: parallax + linterna ----------
+// ---------- mirada: pointer lock (clic) o parallax de ratón ----------
+// captura el ratón para girar con libertad; si el navegador está en cooldown
+// (acabas de soltar con ESC), el próximo clic reintenta.
+function grabMouse() {
+  if (!use3d || !ui.viewport.requestPointerLock) return;
+  try {
+    const p = ui.viewport.requestPointerLock();
+    if (p && p.catch) p.catch(() => {});
+  } catch (err) { /* reintenta con el próximo clic */ }
+}
+ui.viewport.addEventListener('click', grabMouse);
+
 window.addEventListener('mousemove', e => {
+  if (document.pointerLockElement) {
+    // mirada libre capturada: gira la cámara; el halo de la linterna queda al centro
+    const dx = Math.max(-200, Math.min(200, e.movementX));
+    const dy = Math.max(-200, Math.min(200, e.movementY));
+    if (use3d) SCENE3D.addLook(dx, dy);
+    ui.viewport.style.setProperty('--light-x', '50%');
+    ui.viewport.style.setProperty('--light-y', '50%');
+    return;
+  }
   const w = window.innerWidth, h = window.innerHeight;
   const lx = e.clientX / w, ly = e.clientY / h;
   game.look.x = lx; game.look.y = ly;
@@ -463,13 +529,13 @@ function updateEntities(dt) {
   // entes 3D: visibles solo cuando están en tu nodo (fundido en tick)
   if (use3d) SCENE3D.syncEntities(game.entities, game.node);
 
-  // amenaza en tu nodo
+  // amenaza en tu nodo (2D: temporizador de gracia; 3D: el ente te caza físicamente)
   const here = game.entities.find(e => e.node === game.node);
   if (here) {
     if (!game.threat || game.threat.e !== here) {
       game.threat = { e: here, t: here.grace || 1.6 };
       showMsg(`${here.spot || 'Algo ha entrado contigo.'}`, 2.4);
-    } else {
+    } else if (!use3d) {
       game.threat.t -= dt;
       if (game.threat.t <= 0) {
         game.threat = null;
@@ -510,16 +576,26 @@ function loop(now) {
   game.lampFlick = 0.82 + 0.18 * Math.max(0,
     Math.sin(t * 13) * Math.sin(t * 7.3 + 1.7) + Math.sin(t * 2.9) * 0.7) / 1.7;
   ui.light.style.opacity = game.lampFlick;
-  if (use3d) SCENE3D.tick(dt, {
-    flick: game.lampFlick,
-    torch: game.meter ? game.meter.v / game.meter.max : 1,
-  });
+  if (use3d) {
+    SCENE3D.tick(dt, {
+      flick: game.lampFlick,
+      torch: game.meter ? game.meter.v / game.meter.max : 1,
+      move: {
+        f: (keys.KeyW || keys.ArrowUp ? 1 : 0) - (keys.KeyS || keys.ArrowDown ? 1 : 0),
+        s: (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0),
+        run: !!(keys.ShiftLeft || keys.ShiftRight),
+      },
+    });
+    updateHud3d();
+  }
 
-  // tecla mantenida = caminar (WASD continuo, ritmo de la transición)
-  if (game.stepCd > 0) game.stepCd -= dt;
-  if (!game.moving && game.stepCd <= 0) {
-    for (const code in DIR_KEY) {
-      if (keys[code]) { tryMove(DIR_KEY[code]); break; }
+  // tecla mantenida = caminar (solo modo 2D: salto entre nodos)
+  if (!use3d) {
+    if (game.stepCd > 0) game.stepCd -= dt;
+    if (!game.moving && game.stepCd <= 0) {
+      for (const code in DIR_KEY) {
+        if (keys[code]) { tryMove(DIR_KEY[code]); break; }
+      }
     }
   }
 
