@@ -698,6 +698,86 @@ body {
   opacity: 0;
 }
 
+/* --- foto HD del nodo (sustituye al escenario CSS; ver act*.js `image`) --- */
+.scene-photo {
+  background-size: cover;
+  background-position: center;
+  background-color: #060705;
+}
+
+/* --- nombre de la escena al llegar --- */
+#nodeTag {
+  position: absolute;
+  top: 9.5%;
+  width: 100%;
+  text-align: center;
+  font-family: 'Grenze Gotisch', serif;
+  font-size: clamp(0.8rem, 1.7vw, 1.1rem);
+  letter-spacing: 0.32em;
+  color: rgba(216, 205, 184, 0.55);
+  text-shadow: 0 2px 10px #000;
+  transition: opacity 1.4s;
+  opacity: 0;
+}
+
+/* --- brújula: N/S/E/O, salidas abiertas iluminadas, clicables --- */
+#compass {
+  position: absolute;
+  right: 3%;
+  bottom: 7%;
+  display: grid;
+  grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+  width: clamp(96px, 13vw, 150px);
+  aspect-ratio: 1;
+}
+#compass span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  cursor: pointer;
+  font-family: 'Grenze Gotisch', serif;
+  font-size: clamp(0.85rem, 1.7vw, 1.15rem);
+  color: rgba(216, 205, 184, 0.16);
+  text-shadow: 0 2px 8px #000;
+  transition: color 0.35s, text-shadow 0.35s;
+}
+#compass span:nth-child(1) { grid-area: 1 / 2; } /* N */
+#compass span:nth-child(2) { grid-area: 2 / 1; } /* O */
+#compass span:nth-child(3) { grid-area: 2 / 3; } /* E */
+#compass span:nth-child(4) { grid-area: 3 / 2; } /* S */
+#compass span.open {
+  color: rgba(255, 226, 170, 0.95);
+  text-shadow: 0 0 14px rgba(255, 200, 120, 0.6);
+  animation: compPulse 2.6s ease-in-out infinite;
+}
+@keyframes compPulse {
+  0%, 100% { opacity: 0.75; }
+  50%      { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #compass span.open { animation: none; opacity: 0.9; }
+}
+
+/* --- minimapa de nodos visitados (sobre la brújula) --- */
+#minimap {
+  position: absolute;
+  right: 3%;
+  bottom: calc(7% + clamp(96px, 13vw, 150px) + 12px);
+  width: clamp(96px, 13vw, 150px);
+  aspect-ratio: 1;
+  opacity: 0.72;
+  pointer-events: none;
+}
+#minimap line { stroke: rgba(216, 205, 184, 0.34); stroke-width: 1.4; }
+#minimap circle { fill: rgba(216, 205, 184, 0.5); }
+#minimap circle.goal { fill: rgba(232, 182, 76, 0.85); }
+#minimap circle.cur { fill: #ffdca0; animation: mmPulse 1.6s ease-in-out infinite; }
+@keyframes mmPulse {
+  0%, 100% { r: 3.4; opacity: 0.85; }
+  50%      { r: 5; opacity: 1; }
+}
+
 /* ---------- pantallas ---------- */
 .screen {
   position: absolute;

@@ -45,6 +45,7 @@ Flujo: una rama por fase → tú commiteas, pusheas y mergeas a `main` → sigui
 - [x] Capa `#exits`: senderos de luz pulsantes hacia cada salida disponible
 - [x] Destello siempre visible en hotspots (`::after`) para identificar lo interactivo
 - [x] Luminosidad global: atmósfera `brightness(0.9)` + viñeta suavizada
+- [x] Fotos HD reales por nodo (Wikimedia Commons; créditos en `assets/img/CREDITS.md`), brújula N/S/E/O clicable, minimapa de nodos visitados y nombre de escena al llegar
 - [ ] **CHECKPOINT: tú mergeas a `main`**
 
 ## Fase 3 — Acto II: *El Faro* (rama `acto-ii` desde main)
